@@ -1,0 +1,38 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <id>com.hfstudio.minecraftcoloridea</id>
+    <name>Minecraft Color Highlighter</name>
+    <vendor url="https://github.com/nobu-sh/vscode-mc-color">HFStudio</vendor>
+
+    <description><![CDATA[
+    Highlights Minecraft formatting codes in IntelliJ-based editors.<br>
+    Ported from <code>vscode-mc-color</code> with matching tokenization logic,
+    version-aware color tables, fallback parsing, and configurable marker styles.
+  ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationService serviceImplementation="com.hfstudio.minecraftcoloridea.settings.MinecraftColorSettingsState"/>
+        <applicationService serviceImplementation="com.hfstudio.minecraftcoloridea.editor.MinecraftColorApplicationService"/>
+        <applicationConfigurable
+                id="com.hfstudio.minecraftcoloridea.settings"
+                displayName="Minecraft Color Highlighter"
+                parentId="tools"
+                instance="com.hfstudio.minecraftcoloridea.settings.MinecraftColorConfigurable"/>
+        <projectConfigurable
+                id="com.hfstudio.minecraftcoloridea.projectSettings"
+                displayName="Minecraft Color Highlighter"
+                parentId="tools"
+                instance="com.hfstudio.minecraftcoloridea.settings.MinecraftColorProjectConfigurable"/>
+        <editorFactoryListener implementation="com.hfstudio.minecraftcoloridea.editor.MinecraftColorEditorFactoryListener"/>
+        <editorFactoryDocumentListener implementation="com.hfstudio.minecraftcoloridea.editor.MinecraftColorDocumentListener"/>
+        <backgroundPostStartupActivity implementation="com.hfstudio.minecraftcoloridea.editor.MinecraftColorStartupActivity"/>
+    </extensions>
+
+    <applicationListeners>
+        <listener
+                class="com.hfstudio.minecraftcoloridea.editor.MinecraftProjectFileListener"
+                topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"/>
+    </applicationListeners>
+</idea-plugin>
