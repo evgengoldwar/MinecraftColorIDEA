@@ -7,34 +7,57 @@ import com.intellij.openapi.vfs.VirtualFile
 @Service(Service.Level.PROJECT)
 class MinecraftLangIndexService(private val project: Project) {
     private var stamp: Long = 0
-    private var projectLocales: Map<String, Map<String, String>> = emptyMap()
+    private val projectLocales = MinecraftLangFileStore()
     private var dependencyLocales: Map<String, Map<String, String>>? = null
 
     fun currentIndex(): MinecraftLangIndex = MinecraftLangIndex(
-        projectLocales = projectLocales,
+        projectLocales = projectLocales.snapshot(),
         dependencyLocales = dependencyLocales.orEmpty()
     )
 
     fun langIndexStamp(): Long = stamp
 
     fun refreshProjectResources() {
-        projectLocales = buildLocales(MinecraftResourceScanner.projectResources(project))
+        projectLocales.clear()
+        MinecraftResourceScanner.projectResources(project).forEach { file ->
+            parseLocaleFile(file)?.let { (locale, entries) ->
+                projectLocales.replaceFile(file.path, locale, entries)
+            }
+        }
         dependencyLocales = null
         stamp += 1
     }
 
     fun refreshChangedFiles(files: Sequence<VirtualFile>): Set<String> {
-        val changedKeys = files.flatMap { file ->
-            when (file.extension?.lowercase()) {
-                "lang" -> MinecraftLangFileParser.parseLang(String(file.contentsToByteArray())).keys.asSequence()
-                "json" -> MinecraftLangFileParser.parseJson(String(file.contentsToByteArray())).keys.asSequence()
-                else -> emptySequence()
+        val changedKeys = linkedSetOf<String>()
+        files.forEach { file ->
+            parseLocaleFile(file)?.let { (locale, entries) ->
+                changedKeys += projectLocales.replaceFile(file.path, locale, entries)
             }
-        }.toSet()
+        }
 
-        projectLocales = buildLocales(MinecraftResourceScanner.projectResources(project))
-        dependencyLocales = null
-        stamp += 1
+        if (changedKeys.isNotEmpty()) {
+            dependencyLocales = null
+            stamp += 1
+        }
+        return changedKeys
+    }
+
+    fun refreshDocument(file: VirtualFile, text: String): Set<String> {
+        val entries = parseEntries(file.extension, text) ?: return emptySet()
+        val changedKeys = projectLocales.replaceFile(file.path, file.nameWithoutExtension, entries)
+        if (changedKeys.isNotEmpty()) {
+            stamp += 1
+        }
+        return changedKeys
+    }
+
+    fun removeProjectFile(path: String): Set<String> {
+        val changedKeys = projectLocales.removeFile(path)
+        if (changedKeys.isNotEmpty()) {
+            dependencyLocales = null
+            stamp += 1
+        }
         return changedKeys
     }
 
@@ -45,7 +68,7 @@ class MinecraftLangIndexService(private val project: Project) {
             MinecraftResourceScanner.localDependencyResources(project)
         ).also { dependencyLocales = it }
 
-        return MinecraftLangIndex(projectLocales, builtDependencyLocales).lookup(key, localeOrder)
+        return MinecraftLangIndex(projectLocales.snapshot(), builtDependencyLocales).lookup(key, localeOrder)
     }
 
     fun invalidateDependencyResources() {
@@ -57,12 +80,21 @@ class MinecraftLangIndexService(private val project: Project) {
         return files.groupBy { it.nameWithoutExtension.lowercase() }
             .mapValues { (_, localeFiles) ->
                 localeFiles.fold(emptyMap()) { acc, file ->
-                    acc + when (file.extension?.lowercase()) {
-                        "lang" -> MinecraftLangFileParser.parseLang(String(file.contentsToByteArray()))
-                        "json" -> MinecraftLangFileParser.parseJson(String(file.contentsToByteArray()))
-                        else -> emptyMap()
-                    }
+                    acc + (parseEntries(file.extension, String(file.contentsToByteArray())) ?: emptyMap())
                 }
             }
+    }
+
+    private fun parseLocaleFile(file: VirtualFile): Pair<String, Map<String, String>>? {
+        val entries = parseEntries(file.extension, String(file.contentsToByteArray())) ?: return null
+        return file.nameWithoutExtension to entries
+    }
+
+    private fun parseEntries(extension: String?, text: String): Map<String, String>? {
+        return when (extension?.lowercase()) {
+            "lang" -> MinecraftLangFileParser.parseLang(text)
+            "json" -> MinecraftLangFileParser.parseJson(text)
+            else -> null
+        }
     }
 }

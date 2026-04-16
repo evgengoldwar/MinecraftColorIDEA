@@ -47,6 +47,7 @@ class MinecraftColorEditorSession(
     private val alarm = Alarm(Alarm.ThreadToUse.POOLED_THREAD, this)
     private val highlighters = mutableListOf<RangeHighlighter>()
     private val previewSession = MinecraftPreviewInlaySession(editor)
+    private val sourceMarkerSession = MinecraftSourceMarkerInlaySession(editor)
 
     private var disposed = false
     private var lastModificationStamp = Long.MIN_VALUE
@@ -90,9 +91,11 @@ class MinecraftColorEditorSession(
             applyDecorations(
                 spans = emptyList(),
                 previews = emptyList(),
+                sourceMarkers = emptyList(),
                 referencedKeys = emptySet(),
                 modificationStamp = snapshot.modificationStamp,
-                fingerprint = fingerprint
+                fingerprint = fingerprint,
+                config = config
             )
             return
         }
@@ -112,12 +115,19 @@ class MinecraftColorEditorSession(
             config = config,
             langService = langService
         )
+        val sourceMarkers = MinecraftSourceMarkerCollector().collect(
+            text = snapshot.text,
+            languageId = snapshot.languageId,
+            config = config
+        )
         applyDecorations(
             spans = spans,
             previews = previews,
+            sourceMarkers = sourceMarkers,
             referencedKeys = previews.flatMapTo(linkedSetOf()) { it.referencedKeys },
             modificationStamp = snapshot.modificationStamp,
-            fingerprint = fingerprint
+            fingerprint = fingerprint,
+            config = config
         )
     }
 
@@ -145,9 +155,11 @@ class MinecraftColorEditorSession(
     private fun applyDecorations(
         spans: List<ResolvedHighlightSpan>,
         previews: List<MinecraftResolvedPreview>,
+        sourceMarkers: List<MinecraftSourceMarker>,
         referencedKeys: Set<String>,
         modificationStamp: Long,
-        fingerprint: String
+        fingerprint: String,
+        config: MinecraftColorConfig
     ) {
         ApplicationManager.getApplication().invokeLater {
             if (disposed || editor.isDisposed) {
@@ -171,6 +183,7 @@ class MinecraftColorEditorSession(
                 highlighters += highlighter
             }
             previewSession.replace(previews)
+            sourceMarkerSession.replace(sourceMarkers, config)
             editor.project?.service<MinecraftProjectRefreshCoordinator>()
                 ?.updateDependencies(editor.document, referencedKeys)
 
@@ -186,12 +199,9 @@ class MinecraftColorEditorSession(
     ): MinecraftColorConfig {
         val detectedVersionId = versionCache.getOrDetect()?.versionId
         val projectSettings = project.service<MinecraftColorProjectSettingsState>()
-        return baseConfig.copy(
-            effectiveJavaVersionId = projectSettings.resolveEffectiveJavaVersionId(
-                detectedVersionId = detectedVersionId,
-                globalDefaultVersionId = baseConfig.effectiveJavaVersionId,
-                builtInDefaultVersionId = MinecraftColorConfig().effectiveJavaVersionId
-            )
+        return projectSettings.resolveEffectiveConfig(
+            baseConfig = baseConfig,
+            detectedVersionId = detectedVersionId
         )
     }
 
@@ -303,6 +313,7 @@ class MinecraftColorEditorSession(
         disposed = true
         alarm.cancelAllRequests()
         previewSession.clear()
+        sourceMarkerSession.dispose()
         editor.project?.service<MinecraftProjectRefreshCoordinator>()
             ?.updateDependencies(editor.document, emptySet())
         clearHighlighters()

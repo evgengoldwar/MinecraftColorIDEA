@@ -2,6 +2,7 @@ package com.hfstudio.minecraftcoloridea.lang
 
 import com.hfstudio.minecraftcoloridea.core.MinecraftColorConfig
 import com.hfstudio.minecraftcoloridea.core.ExtendedColorParser
+import com.hfstudio.minecraftcoloridea.core.FormattingState
 import com.hfstudio.minecraftcoloridea.core.MinecraftFormatInterpolator
 import com.hfstudio.minecraftcoloridea.core.SpecialFormatting
 import com.hfstudio.minecraftcoloridea.core.MinecraftVersion
@@ -13,7 +14,8 @@ class MinecraftLocalizationResolver(
 ) {
     private data class StyledPreviewText(
         val visibleText: String,
-        val baseColorHex: String?
+        val baseColorHex: String?,
+        val baseFormatting: FormattingState
     )
 
     private data class ParsedArgument(
@@ -87,9 +89,7 @@ class MinecraftLocalizationResolver(
         baseColorHex: String? = null
     ): MinecraftResolvedPreview? {
         val template = index.lookup(key, localeOrder) ?: return null
-        val args = rawArgs.map { arg ->
-            arg.trim().removePrefix("\"").removeSuffix("\"")
-        }
+        val args = rawArgs.map(::decodeArgument)
         val styledPreview = normalizePreviewText(
             text = MinecraftFormatInterpolator.interpolate(template, args),
             inheritedBaseColorHex = baseColorHex
@@ -99,7 +99,8 @@ class MinecraftLocalizationResolver(
             previewText = styledPreview.visibleText,
             excludedSourceRanges = emptyList(),
             referencedKeys = setOf(key),
-            baseColorHex = styledPreview.baseColorHex
+            baseColorHex = styledPreview.baseColorHex,
+            baseFormatting = styledPreview.baseFormatting
         )
     }
 
@@ -138,7 +139,8 @@ class MinecraftLocalizationResolver(
             previewText = styledPreview.visibleText,
             excludedSourceRanges = excludedSourceRanges,
             referencedKeys = resolvedKeys,
-            baseColorHex = styledPreview.baseColorHex
+            baseColorHex = styledPreview.baseColorHex,
+            baseFormatting = styledPreview.baseFormatting
         )
     }
 
@@ -297,9 +299,95 @@ class MinecraftLocalizationResolver(
     }
 
     private fun decodeLiteral(value: String): String {
-        return value
-            .replace("\\\"", "\"")
-            .replace("\\\\", "\\")
+        if ('\\' !in value) {
+            return value
+        }
+
+        val result = StringBuilder(value.length)
+        var index = 0
+
+        while (index < value.length) {
+            val char = value[index]
+            if (char != '\\' || index + 1 >= value.length) {
+                result.append(char)
+                index += 1
+                continue
+            }
+
+            when (val escaped = value[index + 1]) {
+                '\\' -> {
+                    result.append('\\')
+                    index += 2
+                }
+
+                '"' -> {
+                    result.append('"')
+                    index += 2
+                }
+
+                '\'' -> {
+                    result.append('\'')
+                    index += 2
+                }
+
+                'n' -> {
+                    result.append('\n')
+                    index += 2
+                }
+
+                'r' -> {
+                    result.append('\r')
+                    index += 2
+                }
+
+                't' -> {
+                    result.append('\t')
+                    index += 2
+                }
+
+                'b' -> {
+                    result.append('\b')
+                    index += 2
+                }
+
+                'f' -> {
+                    result.append('\u000C')
+                    index += 2
+                }
+
+                'u' -> {
+                    if (index + 6 <= value.length) {
+                        val hex = value.substring(index + 2, index + 6)
+                        val decoded = hex.toIntOrNull(16)?.toChar()
+                        if (decoded != null) {
+                            result.append(decoded)
+                            index += 6
+                            continue
+                        }
+                    }
+
+                    result.append('\\')
+                    result.append(escaped)
+                    index += 2
+                }
+
+                else -> {
+                    result.append(escaped)
+                    index += 2
+                }
+            }
+        }
+
+        return result.toString()
+    }
+
+    private fun decodeArgument(rawArg: String): String {
+        val trimmed = rawArg.trim()
+        return if (trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')) {
+            decodeLiteral(trimmed.substring(1, trimmed.length - 1))
+        } else {
+            trimmed
+        }
     }
 
     private fun escapeForLiteral(value: String): String {
@@ -314,12 +402,14 @@ class MinecraftLocalizationResolver(
     ): StyledPreviewText {
         var index = 0
         var resolvedBaseColor = inheritedBaseColorHex
+        var baseFormatting = FormattingState()
         val formatCodes = MinecraftVersionRegistry.profile(MinecraftColorConfig(version = MinecraftVersion.JAVA))
 
         while (index < text.length) {
             val hexColor = ExtendedColorParser.matchAt(text, index)
             if (hexColor != null) {
                 resolvedBaseColor = ExtendedColorParser.toColorHex(hexColor).lowercase()
+                baseFormatting = FormattingState()
                 index += hexColor.length
                 continue
             }
@@ -337,15 +427,46 @@ class MinecraftLocalizationResolver(
             when {
                 formatCodes.colors.containsKey(code) -> {
                     resolvedBaseColor = formatCodes.colors.getValue(code).lowercase()
+                    baseFormatting = FormattingState()
                     index += markerLength + 1
                 }
 
                 formatCodes.special[code] == SpecialFormatting.RESET -> {
-                    resolvedBaseColor = null
+                    resolvedBaseColor = inheritedBaseColorHex
+                    baseFormatting = FormattingState()
                     index += markerLength + 1
                 }
 
-                formatCodes.special.containsKey(code) -> {
+                formatCodes.special[code] == SpecialFormatting.BOLD -> {
+                    baseFormatting = baseFormatting.copy(bold = true)
+                    index += markerLength + 1
+                }
+
+                formatCodes.special[code] == SpecialFormatting.ITALIC -> {
+                    baseFormatting = baseFormatting.copy(italic = true)
+                    index += markerLength + 1
+                }
+
+                formatCodes.special[code] == SpecialFormatting.UNDERLINE -> {
+                    baseFormatting = baseFormatting.copy(underline = true)
+                    index += markerLength + 1
+                }
+
+                formatCodes.special[code] == SpecialFormatting.STRIKETHROUGH -> {
+                    baseFormatting = baseFormatting.copy(strikethrough = true)
+                    index += markerLength + 1
+                }
+
+                formatCodes.special[code] == SpecialFormatting.UNDERLINE_STRIKETHROUGH -> {
+                    baseFormatting = baseFormatting.copy(
+                        underline = true,
+                        strikethrough = true
+                    )
+                    index += markerLength + 1
+                }
+
+                formatCodes.special[code] == SpecialFormatting.OBFUSCATED -> {
+                    baseFormatting = baseFormatting.copy(obfuscated = true)
                     index += markerLength + 1
                 }
 
@@ -355,7 +476,8 @@ class MinecraftLocalizationResolver(
 
         return StyledPreviewText(
             visibleText = text.substring(index),
-            baseColorHex = resolvedBaseColor
+            baseColorHex = resolvedBaseColor,
+            baseFormatting = baseFormatting
         )
     }
 }

@@ -1,5 +1,6 @@
 package com.hfstudio.minecraftcoloridea.settings
 
+import com.hfstudio.minecraftcoloridea.core.MinecraftColorConfig
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
@@ -10,6 +11,8 @@ import com.intellij.openapi.components.Storage
 class MinecraftColorProjectSettingsState : PersistentStateComponent<MinecraftColorProjectSettingsState.StoredState> {
     class StoredState {
         var projectJavaVersionOverride: String? = null
+        var preferredLocaleOverride: String? = null
+        var secondaryLocaleOverride: String? = null
     }
 
     private var storedState = StoredState()
@@ -32,6 +35,30 @@ class MinecraftColorProjectSettingsState : PersistentStateComponent<MinecraftCol
             ?.ifEmpty { null }
     }
 
+    fun preferredLocaleOverride(): String? {
+        return storedState.preferredLocaleOverride
+            ?.trim()
+            ?.ifEmpty { null }
+    }
+
+    fun setPreferredLocaleOverride(value: String?) {
+        storedState.preferredLocaleOverride = value
+            ?.trim()
+            ?.ifEmpty { null }
+    }
+
+    fun secondaryLocaleOverride(): String? {
+        return storedState.secondaryLocaleOverride
+            ?.trim()
+            ?.ifEmpty { null }
+    }
+
+    fun setSecondaryLocaleOverride(value: String?) {
+        storedState.secondaryLocaleOverride = value
+            ?.trim()
+            ?.ifEmpty { null }
+    }
+
     fun resolveEffectiveJavaVersionId(
         detectedVersionId: String?,
         globalDefaultVersionId: String,
@@ -40,5 +67,20 @@ class MinecraftColorProjectSettingsState : PersistentStateComponent<MinecraftCol
         return projectJavaVersionOverride()
             ?: detectedVersionId?.trim()?.ifEmpty { null }
             ?: globalDefaultVersionId.trim().ifEmpty { builtInDefaultVersionId }
+    }
+
+    fun resolveEffectiveConfig(
+        baseConfig: MinecraftColorConfig,
+        detectedVersionId: String?
+    ): MinecraftColorConfig {
+        return baseConfig.copy(
+            effectiveJavaVersionId = resolveEffectiveJavaVersionId(
+                detectedVersionId = detectedVersionId,
+                globalDefaultVersionId = baseConfig.effectiveJavaVersionId,
+                builtInDefaultVersionId = MinecraftColorConfig().effectiveJavaVersionId
+            ),
+            preferredLocale = preferredLocaleOverride() ?: baseConfig.preferredLocale,
+            secondaryLocale = secondaryLocaleOverride() ?: baseConfig.secondaryLocale
+        )
     }
 }

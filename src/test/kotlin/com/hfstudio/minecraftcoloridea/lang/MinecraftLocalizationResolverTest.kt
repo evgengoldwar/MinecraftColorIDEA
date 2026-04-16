@@ -95,6 +95,26 @@ class MinecraftLocalizationResolverTest {
     }
 
     @Test
+    fun leadingFormattingInLocalizedValueSetsPreviewBaseFormatting() {
+        val index = MinecraftLangIndex(
+            projectLocales = mapOf(
+                "en_us" to mapOf("tooltip.styled" to "\\u00a7f\\u00a7l\\u00a7oStyled value")
+            ),
+            dependencyLocales = emptyMap()
+        )
+
+        val resolved = MinecraftLocalizationResolver(index).resolveExpression(
+            source = "\"tooltip.styled\"",
+            localeOrder = listOf("en_us")
+        )
+
+        assertEquals("Styled value", resolved?.previewText)
+        assertEquals("#ffffff", resolved?.baseColorHex)
+        assertTrue(resolved?.baseFormatting?.bold == true)
+        assertTrue(resolved?.baseFormatting?.italic == true)
+    }
+
+    @Test
     fun decodesUnicodeEscapesInsideFormattedArguments() {
         val index = MinecraftLangIndex(
             projectLocales = mapOf(
@@ -110,7 +130,7 @@ class MinecraftLocalizationResolverTest {
             localeOrder = listOf("en_us")
         )
 
-        assertEquals("Stack multiplier: ∞", resolved?.previewText)
+        assertEquals("Stack multiplier: \u221E", resolved?.previewText)
         assertEquals("#55ff55", resolved?.baseColorHex)
     }
 }
