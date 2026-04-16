@@ -16,6 +16,11 @@ import com.intellij.ui.awt.RelativePoint
 import java.awt.Point
 
 class MinecraftSourceMarkerInlaySession(private val editor: Editor) {
+    private data class TrackedInlay(
+        val rangeMarker: RangeMarker,
+        val inlay: Inlay<*>
+    )
+
     private data class MinecraftCodeOption(
         val code: Char,
         val colorHex: String? = null,
@@ -32,7 +37,7 @@ class MinecraftSourceMarkerInlaySession(private val editor: Editor) {
         }
     }
 
-    private val inlays = mutableListOf<Inlay<*>>()
+    private val inlays = mutableListOf<TrackedInlay>()
     private val mouseListener = object : EditorMouseListener {
         override fun mouseClicked(event: EditorMouseEvent) {
             val inlay = event.inlay ?: return
@@ -51,17 +56,19 @@ class MinecraftSourceMarkerInlaySession(private val editor: Editor) {
     fun replace(markers: List<MinecraftSourceMarker>, config: MinecraftColorConfig) {
         this.config = config
         clear()
-        markers.forEach { marker ->
-            editor.inlayModel.addInlineElement(
-                marker.start,
-                false,
-                MinecraftSourceMarkerRenderer(marker)
-            )?.let(inlays::add)
-        }
+        addMarkers(markers)
+    }
+
+    fun replaceInRegion(region: MinecraftDocumentRegion, markers: List<MinecraftSourceMarker>) {
+        disposeInlaysInRegion(region)
+        addMarkers(markers)
     }
 
     fun clear() {
-        inlays.forEach(Inlay<*>::dispose)
+        inlays.forEach { tracked ->
+            tracked.inlay.dispose()
+            tracked.rangeMarker.dispose()
+        }
         inlays.clear()
     }
 
@@ -179,6 +186,35 @@ class MinecraftSourceMarkerInlaySession(private val editor: Editor) {
                 editor.contentComponent,
                 Point(bounds.x, bounds.y + bounds.height)
             )
+        }
+    }
+
+    private fun addMarkers(markers: List<MinecraftSourceMarker>) {
+        markers.forEach { marker ->
+            val rangeMarker = createRangeMarker(marker)
+            editor.inlayModel.addInlineElement(
+                marker.start,
+                false,
+                MinecraftSourceMarkerRenderer(marker)
+            )?.let { inlay ->
+                inlays += TrackedInlay(rangeMarker = rangeMarker, inlay = inlay)
+            } ?: rangeMarker.dispose()
+        }
+    }
+
+    private fun disposeInlaysInRegion(region: MinecraftDocumentRegion) {
+        val iterator = inlays.iterator()
+        while (iterator.hasNext()) {
+            val tracked = iterator.next()
+            val overlaps = !tracked.rangeMarker.isValid ||
+                region.overlaps(tracked.rangeMarker.startOffset, tracked.rangeMarker.endOffset)
+            if (!overlaps) {
+                continue
+            }
+
+            tracked.inlay.dispose()
+            tracked.rangeMarker.dispose()
+            iterator.remove()
         }
     }
 

@@ -6,6 +6,6 @@ import com.intellij.openapi.editor.event.DocumentListener
 
 class MinecraftColorDocumentListener : DocumentListener {
     override fun documentChanged(event: DocumentEvent) {
-        service<MinecraftColorApplicationService>().documentChanged(event.document)
+        service<MinecraftColorApplicationService>().documentChanged(event)
     }
 }

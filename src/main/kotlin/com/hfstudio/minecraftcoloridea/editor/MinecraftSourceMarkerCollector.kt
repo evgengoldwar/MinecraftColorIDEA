@@ -96,6 +96,25 @@ class MinecraftSourceMarkerCollector {
         return markers
     }
 
+    fun collectInRegion(
+        text: String,
+        languageId: String?,
+        config: MinecraftColorConfig,
+        region: MinecraftDocumentRegion
+    ): List<MinecraftSourceMarker> {
+        if (region.isEmpty()) {
+            return emptyList()
+        }
+
+        val scopedText = region.substring(text)
+        if (scopedText.isEmpty()) {
+            return emptyList()
+        }
+
+        return collect(scopedText, languageId, config)
+            .map { it.shifted(region.start) }
+    }
+
     private fun tokensToAllowedRanges(tokens: List<MinecraftToken>): List<IntRangeSpan> {
         val flattened = mutableListOf<IntRangeSpan>()
 

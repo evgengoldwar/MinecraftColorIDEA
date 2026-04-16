@@ -11,6 +11,7 @@ import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.EditorKind
+import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.TextEditor
@@ -37,13 +38,19 @@ class MinecraftColorApplicationService : Disposable {
         sessions.remove(editor)?.dispose()
     }
 
-    fun documentChanged(document: Document) {
+    fun documentChanged(event: DocumentEvent) {
+        val document = event.document
         val editors = EditorFactory.getInstance().getEditors(document)
+        val change = MinecraftDocumentChange(
+            offset = event.offset,
+            oldLength = event.oldLength,
+            newLength = event.newLength
+        )
         editors.forEach { editor ->
             if (isSupportedEditor(editor)) {
                 sessions.computeIfAbsent(editor) {
                     MinecraftColorEditorSession(it, settings, engine)
-                }.scheduleRefresh()
+                }.scheduleRefresh(change)
             }
         }
 
@@ -57,7 +64,7 @@ class MinecraftColorApplicationService : Disposable {
     }
 
     fun refreshAllEditors() {
-        sessions.values.forEach(MinecraftColorEditorSession::scheduleRefresh)
+        sessions.values.forEach { it.scheduleRefresh() }
     }
 
     fun refreshDocuments(project: Project, documents: Set<Document>) {

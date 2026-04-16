@@ -24,4 +24,10 @@ data class MinecraftSourceMarker(
     val codeIndex: Int? = null,
     val hexFormat: MinecraftSourceHexFormat? = null,
     val hasAlpha: Boolean = false
-)
+) {
+    fun shifted(offset: Int): MinecraftSourceMarker = copy(
+        start = start + offset,
+        end = end + offset,
+        codeIndex = codeIndex?.plus(offset)
+    )
+}

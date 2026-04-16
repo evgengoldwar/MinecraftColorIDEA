@@ -37,6 +37,10 @@ class MinecraftColorEditorSession(
     private val settings: MinecraftColorSettingsState,
     private val engine: MinecraftHighlightEngine
 ) : Disposable {
+    private data class TrackedHighlighter(
+        val highlighter: RangeHighlighter
+    )
+
     private data class Snapshot(
         val text: String,
         val languageId: String?,
@@ -44,22 +48,29 @@ class MinecraftColorEditorSession(
         val filePath: String?
     )
 
-    private val alarm = Alarm(Alarm.ThreadToUse.POOLED_THREAD, this)
-    private val highlighters = mutableListOf<RangeHighlighter>()
+    private val immediateAlarm = Alarm(Alarm.ThreadToUse.POOLED_THREAD, this)
+    private val fullAlarm = Alarm(Alarm.ThreadToUse.POOLED_THREAD, this)
+    private val highlighters = mutableListOf<TrackedHighlighter>()
     private val previewSession = MinecraftPreviewInlaySession(editor)
     private val sourceMarkerSession = MinecraftSourceMarkerInlaySession(editor)
+    private val sourceMarkerCollector = MinecraftSourceMarkerCollector()
 
     private var disposed = false
     private var lastModificationStamp = Long.MIN_VALUE
     private var lastFingerprint = ""
 
-    fun scheduleRefresh() {
+    fun scheduleRefresh(change: MinecraftDocumentChange? = null) {
         if (disposed) {
             return
         }
 
-        alarm.cancelAllRequests()
-        alarm.addRequest({ refreshNow() }, 30)
+        change?.let {
+            immediateAlarm.cancelAllRequests()
+            immediateAlarm.addRequest({ refreshChangedRegion(it) }, 0)
+        }
+
+        fullAlarm.cancelAllRequests()
+        fullAlarm.addRequest({ refreshNow() }, if (change == null) 30 else 180)
     }
 
     private fun refreshNow() {
@@ -115,7 +126,7 @@ class MinecraftColorEditorSession(
             config = config,
             langService = langService
         )
-        val sourceMarkers = MinecraftSourceMarkerCollector().collect(
+        val sourceMarkers = sourceMarkerCollector.collect(
             text = snapshot.text,
             languageId = snapshot.languageId,
             config = config
@@ -128,6 +139,41 @@ class MinecraftColorEditorSession(
             modificationStamp = snapshot.modificationStamp,
             fingerprint = fingerprint,
             config = config
+        )
+    }
+
+    private fun refreshChangedRegion(change: MinecraftDocumentChange) {
+        if (disposed || editor.isDisposed) {
+            return
+        }
+
+        val project = editor.project ?: return
+        val versionCache = project.service<MinecraftVersionDetectionCache>()
+        val config = effectiveConfig(
+            project = project,
+            baseConfig = settings.toConfig(),
+            versionCache = versionCache
+        )
+        val snapshot = createSnapshot(project) ?: return
+        val region = MinecraftDocumentChangeRegion.fromTextChange(
+            text = snapshot.text,
+            offset = change.offset,
+            oldLength = change.oldLength,
+            newLength = change.newLength
+        )
+
+        val spans = highlightRegion(snapshot, region, config)
+        val markers = sourceMarkerCollector.collectInRegion(
+            text = snapshot.text,
+            languageId = snapshot.languageId,
+            config = config,
+            region = region
+        )
+        applyChangedRegionDecorations(
+            region = region,
+            spans = spans,
+            sourceMarkers = markers,
+            modificationStamp = snapshot.modificationStamp
         )
     }
 
@@ -180,7 +226,7 @@ class MinecraftColorEditorSession(
                     createTextAttributes(span),
                     HighlighterTargetArea.EXACT_RANGE
                 )
-                highlighters += highlighter
+                highlighters += TrackedHighlighter(highlighter)
             }
             previewSession.replace(previews)
             sourceMarkerSession.replace(sourceMarkers, config)
@@ -189,6 +235,37 @@ class MinecraftColorEditorSession(
 
             lastModificationStamp = modificationStamp
             lastFingerprint = fingerprint
+        }
+    }
+
+    private fun applyChangedRegionDecorations(
+        region: MinecraftDocumentRegion,
+        spans: List<ResolvedHighlightSpan>,
+        sourceMarkers: List<MinecraftSourceMarker>,
+        modificationStamp: Long
+    ) {
+        ApplicationManager.getApplication().invokeLater {
+            if (disposed || editor.isDisposed) {
+                return@invokeLater
+            }
+
+            if (editor.document.modificationStamp != modificationStamp) {
+                return@invokeLater
+            }
+
+            clearHighlightersInRegion(region)
+            val markupModel = editor.markupModel
+            spans.forEach { span ->
+                val highlighter = markupModel.addRangeHighlighter(
+                    span.start,
+                    span.end,
+                    HighlighterLayer.ADDITIONAL_SYNTAX,
+                    createTextAttributes(span),
+                    HighlighterTargetArea.EXACT_RANGE
+                )
+                highlighters += TrackedHighlighter(highlighter)
+            }
+            sourceMarkerSession.replaceInRegion(region, sourceMarkers)
         }
     }
 
@@ -300,8 +377,50 @@ class MinecraftColorEditorSession(
         return Color(color.red, color.green, color.blue, normalizedAlpha)
     }
 
+    private fun highlightRegion(
+        snapshot: Snapshot,
+        region: MinecraftDocumentRegion,
+        config: MinecraftColorConfig
+    ): List<ResolvedHighlightSpan> {
+        if (region.isEmpty()) {
+            return emptyList()
+        }
+
+        val regionText = region.substring(snapshot.text)
+        if (regionText.isEmpty()) {
+            return emptyList()
+        }
+
+        return engine.highlight(
+            text = regionText,
+            languageId = snapshot.languageId,
+            config = config
+        ).map { span ->
+            span.copy(
+                start = span.start + region.start,
+                end = span.end + region.start
+            )
+        }
+    }
+
+    private fun clearHighlightersInRegion(region: MinecraftDocumentRegion) {
+        val iterator = highlighters.iterator()
+        while (iterator.hasNext()) {
+            val tracked = iterator.next()
+            val highlighter = tracked.highlighter
+            val overlaps = !highlighter.isValid ||
+                region.overlaps(highlighter.startOffset, highlighter.endOffset)
+            if (!overlaps) {
+                continue
+            }
+
+            highlighter.dispose()
+            iterator.remove()
+        }
+    }
+
     private fun clearHighlighters() {
-        highlighters.forEach(RangeHighlighter::dispose)
+        highlighters.forEach { it.highlighter.dispose() }
         highlighters.clear()
     }
 
@@ -311,7 +430,8 @@ class MinecraftColorEditorSession(
         }
 
         disposed = true
-        alarm.cancelAllRequests()
+        immediateAlarm.cancelAllRequests()
+        fullAlarm.cancelAllRequests()
         previewSession.clear()
         sourceMarkerSession.dispose()
         editor.project?.service<MinecraftProjectRefreshCoordinator>()

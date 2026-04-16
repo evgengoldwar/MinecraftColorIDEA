@@ -35,4 +35,25 @@ class MinecraftSourceMarkerCollectorTest {
         assertEquals(SpecialFormatting.OBFUSCATED, markers[3].formatting)
         assertEquals("\\u00a7k", markers[3].rawText)
     }
+
+    @Test
+    fun collectsMarkersInsideRequestedRegionWithGlobalOffsets() {
+        val source = "\"first #112233\"\n\"second 0xC0C0C0\""
+        val secondLineStart = source.indexOf("\"second")
+        val secondLineEnd = source.length
+
+        val markers = collector.collectInRegion(
+            text = source,
+            languageId = "JAVA",
+            config = MinecraftColorConfig(),
+            region = MinecraftDocumentRegion(secondLineStart, secondLineEnd)
+        )
+
+        assertEquals(1, markers.size)
+        assertEquals("0xC0C0C0", markers.single().rawText)
+        assertEquals(
+            source.indexOf("0xC0C0C0"),
+            markers.single().start
+        )
+    }
 }
