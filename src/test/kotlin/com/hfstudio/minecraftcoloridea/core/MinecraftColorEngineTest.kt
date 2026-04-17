@@ -138,4 +138,23 @@ class MinecraftColorEngineTest {
         assertEquals("#000000", marker.colorHex)
         assertEquals("#FFFFFF", marker.contrastHex)
     }
+
+    @Test
+    fun plainTextKeepsFormattingAcrossQuotedFragments() {
+        val text = "Tooltip_PipelessJetstreamHatch_00=§b§o你梦中回忆起\"无线能源仓\"，却不记得有这种力量."
+
+        val spans = engine.highlight(
+            text = text,
+            languageId = "plain text",
+            config = MinecraftColorConfig(prefixes = listOf("§"), version = MinecraftVersion.JAVA)
+        )
+
+        val quoted = spans.first { text.substring(it.start, it.end).contains("无线能源仓") }
+        assertEquals("#55FFFF", quoted.colorMarker?.colorHex)
+        assertTrue(quoted.formatting.italic)
+
+        val tail = spans.first { text.substring(it.start, it.end).contains("却不记得有这种力量") }
+        assertEquals("#55FFFF", tail.colorMarker?.colorHex)
+        assertTrue(tail.formatting.italic)
+    }
 }

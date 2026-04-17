@@ -202,3 +202,19 @@ fun fallbackTokenizer(content: String, regexes: List<Regex>): List<MinecraftToke
 
     return tokens
 }
+
+fun fallbackDelimiterRegexes(languageId: String?, defaultRegexes: List<Regex>): List<Regex> {
+    val normalized = languageId
+        ?.trim()
+        ?.lowercase()
+        ?.replace('_', ' ')
+        ?.replace('-', ' ')
+        ?.replace(Regex("\\s+"), " ")
+        ?: return defaultRegexes
+
+    return if (normalized == "minecraft lang" || normalized.contains("plain text") || normalized.contains("properties")) {
+        listOf(Regex("\\r?\\n"))
+    } else {
+        defaultRegexes
+    }
+}

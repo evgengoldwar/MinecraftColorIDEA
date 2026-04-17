@@ -7,6 +7,7 @@ import com.hfstudio.minecraftcoloridea.core.MinecraftGrammars
 import com.hfstudio.minecraftcoloridea.core.MinecraftToken
 import com.hfstudio.minecraftcoloridea.core.MinecraftTokenizer
 import com.hfstudio.minecraftcoloridea.core.MinecraftVersionRegistry
+import com.hfstudio.minecraftcoloridea.core.fallbackDelimiterRegexes
 import com.hfstudio.minecraftcoloridea.core.fallbackTokenizer
 
 class MinecraftSourceMarkerCollector {
@@ -24,7 +25,10 @@ class MinecraftSourceMarkerCollector {
         val grammar = MinecraftGrammars.find(languageId)
         val tokens = when {
             grammar != null -> MinecraftTokenizer(grammar).tokenize(text)
-            config.fallback -> fallbackTokenizer(text, config.compiledFallbackRegex())
+            config.fallback -> fallbackTokenizer(
+                text,
+                fallbackDelimiterRegexes(languageId, config.compiledFallbackRegex())
+            )
             else -> emptyList()
         }
         val allowedRanges = when {

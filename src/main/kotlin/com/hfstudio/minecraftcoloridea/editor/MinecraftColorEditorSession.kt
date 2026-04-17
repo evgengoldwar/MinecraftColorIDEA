@@ -189,9 +189,13 @@ class MinecraftColorEditorSession(
 
             val document = editor.document
             val file = FileDocumentManager.getInstance().getFile(document)
-            val languageId = file
+            val detectedLanguageId = file
                 ?.let { PsiManager.getInstance(project).findFile(it)?.language?.id }
                 ?: file?.fileType?.name
+            val languageId = when (file?.extension?.lowercase()) {
+                "lang" -> "minecraft-lang"
+                else -> detectedLanguageId
+            }
 
             Snapshot(
                 text = document.immutableCharSequence.toString(),

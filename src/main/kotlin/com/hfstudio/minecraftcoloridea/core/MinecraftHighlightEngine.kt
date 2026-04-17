@@ -50,7 +50,10 @@ class MinecraftHighlightEngine {
         val grammar = MinecraftGrammars.find(languageId)
         val tokens = when {
             grammar != null -> MinecraftTokenizer(grammar).tokenize(text)
-            config.fallback -> fallbackTokenizer(text, config.compiledFallbackRegex())
+            config.fallback -> fallbackTokenizer(
+                text,
+                fallbackDelimiterRegexes(languageId, config.compiledFallbackRegex())
+            )
             else -> emptyList()
         }
 
