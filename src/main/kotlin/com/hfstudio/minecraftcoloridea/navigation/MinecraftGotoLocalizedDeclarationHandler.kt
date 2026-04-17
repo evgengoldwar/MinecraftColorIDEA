@@ -26,9 +26,7 @@ class MinecraftGotoLocalizedDeclarationHandler : GotoDeclarationHandler {
             key = key,
             sourceIndexStamp = sourceIndex.sourceIndexStamp(),
             resolveTarget = { resolvedKey ->
-                MinecraftLocalizedNavigationResolver.resolve(resolvedKey, localeOrder) { lookupKey, locale ->
-                    sourceIndex.lookup(lookupKey, listOf(locale))
-                }
+                MinecraftLocalizedNavigationResolver.resolve(resolvedKey, localeOrder, sourceIndex::lookupAll)
             },
             toPsiTarget = { entry -> entry.toPsiTarget(project) }
         )

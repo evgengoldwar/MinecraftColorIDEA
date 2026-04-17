@@ -15,6 +15,7 @@ class MinecraftColorProjectSettingsState : PersistentStateComponent<MinecraftCol
         var projectJavaVersionOverride: String? = null
         var preferredLocaleOverride: String? = null
         var secondaryLocaleOverride: String? = null
+        var maxEnumeratedKeysOverride: String? = null
     }
 
     private var storedState = StoredState()
@@ -24,6 +25,7 @@ class MinecraftColorProjectSettingsState : PersistentStateComponent<MinecraftCol
     override fun loadState(state: StoredState) {
         this.storedState = state.apply {
             projectJavaVersionOverride = normalizeProjectJavaVersionOverride(projectJavaVersionOverride)
+            maxEnumeratedKeysOverride = normalizeMaxEnumeratedKeysOverride(maxEnumeratedKeysOverride)
         }
     }
 
@@ -59,6 +61,20 @@ class MinecraftColorProjectSettingsState : PersistentStateComponent<MinecraftCol
             ?.ifEmpty { null }
     }
 
+    fun maxEnumeratedKeysOverride(): String? {
+        return normalizeMaxEnumeratedKeysOverride(storedState.maxEnumeratedKeysOverride)
+    }
+
+    fun setMaxEnumeratedKeysOverride(value: String?) {
+        storedState.maxEnumeratedKeysOverride = normalizeMaxEnumeratedKeysOverride(value)
+    }
+
+    fun resolveMaxEnumeratedKeys(globalDefault: Int): Int {
+        return maxEnumeratedKeysOverride()
+            ?.toIntOrNull()
+            ?: globalDefault
+    }
+
     fun resolveEffectiveJavaVersionId(
         detectedVersionId: String?,
         globalDefaultVersionId: String,
@@ -79,7 +95,8 @@ class MinecraftColorProjectSettingsState : PersistentStateComponent<MinecraftCol
                 detectedVersionId = detectedVersionId,
                 globalDefaultVersionId = baseConfig.effectiveJavaVersionId,
                 builtInDefaultVersionId = MinecraftColorConfig().effectiveJavaVersionId
-            )
+            ),
+            maxEnumeratedKeys = resolveMaxEnumeratedKeys(baseConfig.maxEnumeratedKeys)
         )
     }
 
@@ -92,5 +109,19 @@ class MinecraftColorProjectSettingsState : PersistentStateComponent<MinecraftCol
             ?.trim()
             ?.ifEmpty { null }
         return MinecraftJavaVersion.fromId(normalizedValue)?.id
+    }
+
+    private fun normalizeMaxEnumeratedKeysOverride(value: String?): String? {
+        val normalizedValue = value
+            ?.trim()
+            ?.ifEmpty { null }
+        val parsed = normalizedValue?.toIntOrNull()
+        return if (parsed != null &&
+            parsed in MinecraftColorConfig.MIN_MAX_ENUMERATED_KEYS..MinecraftColorConfig.MAX_MAX_ENUMERATED_KEYS
+        ) {
+            parsed.toString()
+        } else {
+            null
+        }
     }
 }

@@ -13,9 +13,24 @@ import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.ColorPicker
 import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.awt.RelativePoint
+import java.awt.Component
+import java.awt.Dimension
 import java.awt.Point
+import java.awt.Window
+import javax.swing.SwingUtilities
 
 class MinecraftSourceMarkerInlaySession(private val editor: Editor) {
+    companion object {
+        internal const val HEX_COLOR_PICKER_MIN_WIDTH = 440
+
+        internal fun hexColorPickerPopupMinSize(currentSize: Dimension): Dimension {
+            return Dimension(
+                currentSize.width.coerceAtLeast(HEX_COLOR_PICKER_MIN_WIDTH),
+                currentSize.height
+            )
+        }
+    }
+
     private data class TrackedInlay(
         val rangeMarker: RangeMarker,
         val inlay: Inlay<*>
@@ -82,6 +97,7 @@ class MinecraftSourceMarkerInlaySession(private val editor: Editor) {
         when (marker.kind) {
             MinecraftSourceMarkerKind.HEX_COLOR -> {
                 val color = MinecraftSourceMarkerEditSupport.parseColor(marker) ?: return
+                val existingWindows = Window.getWindows().toSet()
                 ColorPicker.showColorPickerPopup(
                     project,
                     color,
@@ -94,6 +110,7 @@ class MinecraftSourceMarkerInlaySession(private val editor: Editor) {
                     popupPoint(inlay),
                     true
                 )
+                widenNewHexColorPickerPopup(existingWindows)
             }
 
             MinecraftSourceMarkerKind.MINECRAFT_COLOR,
@@ -123,6 +140,47 @@ class MinecraftSourceMarkerInlaySession(private val editor: Editor) {
                 popup.show(popupPoint(inlay))
             }
         }
+    }
+
+    private fun widenNewHexColorPickerPopup(existingWindows: Set<Window>) {
+        SwingUtilities.invokeLater {
+            Window.getWindows()
+                .asSequence()
+                .filter(Window::isVisible)
+                .filterNot(existingWindows::contains)
+                .forEach(::applyHexColorPickerMinWidth)
+        }
+    }
+
+    private fun applyHexColorPickerMinWidth(window: Window) {
+        val colorPicker = findColorPicker(window) ?: return
+        val pickerSize = hexColorPickerPopupMinSize(colorPicker.preferredSize)
+        colorPicker.minimumSize = pickerSize
+        colorPicker.preferredSize = pickerSize
+
+        val windowSize = hexColorPickerPopupMinSize(
+            if (window.size.width > 0 && window.size.height > 0) window.size else pickerSize
+        )
+        window.minimumSize = windowSize
+        window.size = Dimension(
+            window.width.coerceAtLeast(windowSize.width),
+            window.height.coerceAtLeast(windowSize.height)
+        )
+        window.validate()
+    }
+
+    private fun findColorPicker(component: Component): ColorPicker? {
+        if (component is ColorPicker) {
+            return component
+        }
+        if (component !is java.awt.Container) {
+            return null
+        }
+
+        component.components.forEach { child ->
+            findColorPicker(child)?.let { return it }
+        }
+        return null
     }
 
     private fun popupOptions(): List<MinecraftCodeOption> {

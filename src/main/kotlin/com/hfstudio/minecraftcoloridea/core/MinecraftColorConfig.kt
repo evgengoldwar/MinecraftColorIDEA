@@ -32,11 +32,16 @@ data class MinecraftColorConfig(
     val effectiveJavaVersionId: String = MinecraftJavaVersion.LATEST_SUPPORTED_ID,
     val preferredLocale: String = "en_us",
     val secondaryLocale: String = "zh_cn",
-    val extraLocalizationMethods: Set<String> = emptySet()
+    val extraLocalizationMethods: Set<String> = emptySet(),
+    val maxEnumeratedKeys: Int = DEFAULT_MAX_ENUMERATED_KEYS
 ) {
     fun compiledFallbackRegex(): List<Regex> = fallbackRegex.map(::Regex)
 
     companion object {
+        const val DEFAULT_MAX_ENUMERATED_KEYS = 8
+        const val MIN_MAX_ENUMERATED_KEYS = 1
+        const val MAX_MAX_ENUMERATED_KEYS = 64
+
         val DEFAULT_FALLBACK_REGEX = listOf(
             "(?<!\\\\)\"",
             "(?<!\\\\)'",

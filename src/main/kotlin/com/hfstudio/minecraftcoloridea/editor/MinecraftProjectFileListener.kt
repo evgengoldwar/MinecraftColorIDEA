@@ -2,6 +2,10 @@ package com.hfstudio.minecraftcoloridea.editor
 
 import com.hfstudio.minecraftcoloridea.lang.MinecraftLangIndexService
 import com.hfstudio.minecraftcoloridea.lang.MinecraftLangSourceIndexService
+import com.hfstudio.minecraftcoloridea.navigation.MinecraftCodeUsageFileScope
+import com.hfstudio.minecraftcoloridea.navigation.MinecraftCodeUsageIndexService
+import com.hfstudio.minecraftcoloridea.settings.MinecraftColorProjectSettingsState
+import com.hfstudio.minecraftcoloridea.settings.MinecraftColorSettingsState
 import com.hfstudio.minecraftcoloridea.version.MinecraftVersionDetectionCache
 import com.hfstudio.minecraftcoloridea.version.MinecraftVersionSignalFiles
 import com.intellij.openapi.application.ApplicationManager
@@ -29,12 +33,17 @@ class MinecraftProjectFileListener : BulkFileListener {
         val appService = ApplicationManager.getApplication().service<MinecraftColorApplicationService>()
         val langService = project.service<MinecraftLangIndexService>()
         val langSourceService = project.service<MinecraftLangSourceIndexService>()
+        val codeUsageService = project.service<MinecraftCodeUsageIndexService>()
         val fileIndex = ProjectFileIndex.getInstance(project)
+        val maxEnumeratedKeys = project.service<MinecraftColorProjectSettingsState>()
+            .resolveMaxEnumeratedKeys(project.service<MinecraftColorSettingsState>().toConfig().maxEnumeratedKeys)
 
         val relevantEvents = events.filter { event ->
             val path = normalizePath(event.path)
             MinecraftEditorFileScope.isProjectOwned(basePath, path) ||
+                eventOldPath(event)?.let { MinecraftEditorFileScope.isProjectOwned(basePath, it) } == true ||
                 MinecraftProjectFileRules.staleProjectLangPath(basePath, event) != null ||
+                MinecraftProjectFileRules.staleProjectCodeUsagePath(basePath, event) != null ||
                 isDependencyLangFile(fileIndex, path, event.file)
         }
         if (relevantEvents.isEmpty()) {
@@ -42,10 +51,15 @@ class MinecraftProjectFileListener : BulkFileListener {
         }
 
         val staleProjectLangPaths = MinecraftProjectFileRules.staleProjectLangPaths(basePath, relevantEvents)
+        val staleProjectCodePaths = MinecraftProjectFileRules.staleProjectCodeUsagePaths(basePath, relevantEvents)
 
         val projectLangEvents = relevantEvents.filter { event ->
             val path = normalizePath(event.path)
             MinecraftEditorFileScope.isProjectOwned(basePath, path) && MinecraftProjectFileRules.isLangFile(path)
+        }
+        val projectCodeEvents = relevantEvents.filter { event ->
+            val path = normalizePath(event.path)
+            MinecraftEditorFileScope.isProjectOwned(basePath, path) && MinecraftCodeUsageFileScope.isCandidate(path)
         }
         val dependencyLangChanged = relevantEvents.any { event ->
             val path = normalizePath(event.path)
@@ -67,6 +81,7 @@ class MinecraftProjectFileListener : BulkFileListener {
             langSourceService.removeProjectFile(path)
             changedKeys += langService.removeProjectFile(path)
         }
+        staleProjectCodePaths.forEach(codeUsageService::removeProjectFile)
 
         if (projectLangEvents.isNotEmpty()) {
             val changedFiles = projectLangEvents.mapNotNull { it.file }
@@ -77,6 +92,15 @@ class MinecraftProjectFileListener : BulkFileListener {
                 langService.refreshProjectResources()
                 langSourceService.refreshProjectResources()
                 changedKeys.clear()
+            }
+        }
+
+        if (projectCodeEvents.isNotEmpty()) {
+            val changedFiles = projectCodeEvents.mapNotNull { it.file }
+            if (changedFiles.size == projectCodeEvents.size) {
+                codeUsageService.refreshChangedFiles(changedFiles.asSequence(), maxEnumeratedKeys)
+            } else {
+                codeUsageService.refreshProjectResources(maxEnumeratedKeys)
             }
         }
 

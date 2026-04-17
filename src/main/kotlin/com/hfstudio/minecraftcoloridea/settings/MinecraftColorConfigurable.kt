@@ -28,6 +28,7 @@ class MinecraftColorConfigurable : Configurable {
     private val globalJavaVersionField = JBTextField()
     private val preferredLocaleField = JBTextField()
     private val secondaryLocaleField = JBTextField()
+    private val maxEnumeratedKeysField = JBTextField()
     private val markerComboBox = ComboBox(MinecraftMarker.entries.toTypedArray())
     private val fallbackCheckBox = JBCheckBox(MinecraftColorBundle.message("settings.global.fallback.enable"))
     private val fallbackRegexArea = JBTextArea(6, 40)
@@ -62,6 +63,12 @@ class MinecraftColorConfigurable : Configurable {
                 )
                 .addLabeledComponent(MinecraftColorBundle.message("settings.global.preferred.locale"), preferredLocaleField, 1, false)
                 .addLabeledComponent(MinecraftColorBundle.message("settings.global.secondary.locale"), secondaryLocaleField, 1, false)
+                .addLabeledComponent(
+                    MinecraftColorBundle.message("settings.global.max.enumerated.keys"),
+                    maxEnumeratedKeysField,
+                    1,
+                    false
+                )
                 .addLabeledComponent(MinecraftColorBundle.message("settings.global.marker"), markerComboBox, 1, false)
                 .addComponent(fallbackCheckBox)
                 .addLabeledComponent(
@@ -93,6 +100,7 @@ class MinecraftColorConfigurable : Configurable {
     override fun apply() {
         settings.update(parseConfigFromUi())
         globalJavaVersionField.text = settings.toConfig().effectiveJavaVersionId
+        maxEnumeratedKeysField.text = settings.toConfig().maxEnumeratedKeys.toString()
         service<MinecraftColorApplicationService>().refreshAllEditors()
     }
 
@@ -104,6 +112,7 @@ class MinecraftColorConfigurable : Configurable {
         globalJavaVersionField.text = config.effectiveJavaVersionId
         preferredLocaleField.text = config.preferredLocale
         secondaryLocaleField.text = config.secondaryLocale
+        maxEnumeratedKeysField.text = config.maxEnumeratedKeys.toString()
         markerComboBox.selectedItem = config.marker
         fallbackCheckBox.isSelected = config.fallback
         fallbackRegexArea.text = config.fallbackRegex.joinToString("\n")
@@ -127,6 +136,12 @@ class MinecraftColorConfigurable : Configurable {
             .map(String::trim)
             .filter(String::isNotEmpty)
             .toSet()
+        val maxEnumeratedKeys = maxEnumeratedKeysField.text.trim()
+            .toIntOrNull()
+            ?.takeIf {
+                it in MinecraftColorConfig.MIN_MAX_ENUMERATED_KEYS..MinecraftColorConfig.MAX_MAX_ENUMERATED_KEYS
+            }
+            ?: MinecraftColorConfig.DEFAULT_MAX_ENUMERATED_KEYS
 
         return MinecraftColorConfig(
             enable = enableCheckBox.isSelected,
@@ -139,7 +154,8 @@ class MinecraftColorConfigurable : Configurable {
                 ?: MinecraftJavaVersion.LATEST_SUPPORTED_ID,
             preferredLocale = preferredLocaleField.text.trim().ifEmpty { "en_us" },
             secondaryLocale = secondaryLocaleField.text.trim().ifEmpty { "zh_cn" },
-            extraLocalizationMethods = extraMethods
+            extraLocalizationMethods = extraMethods,
+            maxEnumeratedKeys = maxEnumeratedKeys
         )
     }
 }

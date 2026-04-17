@@ -15,6 +15,10 @@ class MinecraftLangSourceIndexService(private val project: Project) {
         return projectLocales.lookup(key, localeOrder)
     }
 
+    fun lookupAll(key: String): List<MinecraftLangSourceEntry>? {
+        return projectLocales.lookupAll(key)
+    }
+
     fun refreshProjectResources() {
         projectLocales.clear()
         MinecraftResourceScanner.projectResources(project).forEach { file ->

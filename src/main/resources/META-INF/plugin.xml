@@ -29,6 +29,7 @@
                 parentId="tools"
                 instance="com.hfstudio.minecraftcoloridea.settings.MinecraftColorProjectConfigurable"/>
         <gotoDeclarationHandler implementation="com.hfstudio.minecraftcoloridea.navigation.MinecraftGotoLocalizedDeclarationHandler"/>
+        <gotoDeclarationHandler implementation="com.hfstudio.minecraftcoloridea.navigation.MinecraftGotoCodeUsageDeclarationHandler"/>
         <editorFactoryListener implementation="com.hfstudio.minecraftcoloridea.editor.MinecraftColorEditorFactoryListener"/>
         <editorFactoryDocumentListener implementation="com.hfstudio.minecraftcoloridea.editor.MinecraftColorDocumentListener"/>
         <backgroundPostStartupActivity implementation="com.hfstudio.minecraftcoloridea.editor.MinecraftColorStartupActivity"/>
@@ -43,6 +44,10 @@
     <actions>
         <action id="MinecraftColor.GotoLocalizedEntry"
                 class="com.hfstudio.minecraftcoloridea.navigation.MinecraftGotoLocalizedEntryAction">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+        <action id="MinecraftColor.GotoCodeUsage"
+                class="com.hfstudio.minecraftcoloridea.navigation.MinecraftGotoCodeUsageAction">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
         </action>
     </actions>

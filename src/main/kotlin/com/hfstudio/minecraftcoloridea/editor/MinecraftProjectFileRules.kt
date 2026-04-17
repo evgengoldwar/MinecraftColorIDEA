@@ -1,5 +1,6 @@
 package com.hfstudio.minecraftcoloridea.editor
 
+import com.hfstudio.minecraftcoloridea.navigation.MinecraftCodeUsageFileScope
 import com.hfstudio.minecraftcoloridea.version.MinecraftVersionSignalFiles
 import com.intellij.openapi.vfs.newvfs.events.VFileDeleteEvent
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
@@ -35,6 +36,30 @@ internal object MinecraftProjectFileRules {
         val normalizedPath = normalizePath(oldPath)
         return normalizedPath.takeIf { path ->
             MinecraftEditorFileScope.isProjectOwned(projectBasePath, path) && isLangFile(path)
+        }
+    }
+
+    fun staleProjectCodeUsagePaths(
+        projectBasePath: String,
+        events: List<VFileEvent>
+    ): Set<String> {
+        return events.mapNotNullTo(linkedSetOf()) { event ->
+            staleProjectCodeUsagePath(projectBasePath, event)
+        }
+    }
+
+    fun staleProjectCodeUsagePath(projectBasePath: String, event: VFileEvent): String? {
+        val oldPath = when (event) {
+            is VFileDeleteEvent -> event.path
+            is VFileMoveEvent -> event.oldPath
+            is VFilePropertyChangeEvent -> event.oldPath.takeIf { event.isRename }
+            else -> null
+        } ?: return null
+
+        val normalizedPath = normalizePath(oldPath)
+        return normalizedPath.takeIf { path ->
+            MinecraftEditorFileScope.isProjectOwned(projectBasePath, path) &&
+                MinecraftCodeUsageFileScope.isCandidate(path)
         }
     }
 

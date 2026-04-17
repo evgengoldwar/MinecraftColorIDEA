@@ -56,4 +56,21 @@ class MinecraftSourceMarkerCollectorTest {
             markers.single().start
         )
     }
+
+    @Test
+    fun collectsHexMarkersFromJavaIntDeclarationsOutsideStrings() {
+        val source = "private static final int DEF_COLOR = 0x66CCFF;"
+
+        val markers = collector.collect(
+            text = source,
+            languageId = "JAVA",
+            config = MinecraftColorConfig()
+        )
+
+        assertEquals(1, markers.size)
+        assertEquals(MinecraftSourceMarkerKind.HEX_COLOR, markers.single().kind)
+        assertEquals("0x66CCFF", markers.single().rawText)
+        assertEquals("#66ccff", markers.single().colorHex)
+        assertEquals(source.indexOf("0x66CCFF"), markers.single().start)
+    }
 }

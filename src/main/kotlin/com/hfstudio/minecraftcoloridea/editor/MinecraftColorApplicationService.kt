@@ -3,6 +3,9 @@ package com.hfstudio.minecraftcoloridea.editor
 import com.hfstudio.minecraftcoloridea.core.MinecraftHighlightEngine
 import com.hfstudio.minecraftcoloridea.lang.MinecraftLangIndexService
 import com.hfstudio.minecraftcoloridea.lang.MinecraftLangSourceIndexService
+import com.hfstudio.minecraftcoloridea.navigation.MinecraftCodeUsageFileScope
+import com.hfstudio.minecraftcoloridea.navigation.MinecraftCodeUsageIndexService
+import com.hfstudio.minecraftcoloridea.settings.MinecraftColorProjectSettingsState
 import com.hfstudio.minecraftcoloridea.settings.MinecraftColorSettingsState
 import com.hfstudio.minecraftcoloridea.version.MinecraftVersionDetectionCache
 import com.hfstudio.minecraftcoloridea.version.MinecraftVersionSignalFiles
@@ -116,6 +119,13 @@ class MinecraftColorApplicationService : Disposable {
                     refreshDocuments(project, affectedDocuments)
                 }
             }
+        }
+
+        if (MinecraftCodeUsageFileScope.isCandidate(file)) {
+            val maxEnumeratedKeys = project.service<MinecraftColorProjectSettingsState>()
+                .resolveMaxEnumeratedKeys(settings.toConfig().maxEnumeratedKeys)
+            project.service<MinecraftCodeUsageIndexService>()
+                .refreshDocument(file, text, maxEnumeratedKeys)
         }
 
         if (MinecraftVersionSignalFiles.isVersionSignalFile(path)) {

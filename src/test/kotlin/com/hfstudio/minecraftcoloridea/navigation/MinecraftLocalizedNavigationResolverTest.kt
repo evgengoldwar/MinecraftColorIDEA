@@ -9,7 +9,7 @@ import kotlin.test.assertNull
 
 class MinecraftLocalizedNavigationResolverTest {
     @Test
-    fun choosesPreferredLocaleBeforeEnglishFallback() {
+    fun ordersAllLocaleMatchesByPreferredLocaleBeforeEnglishFallback() {
         val store = MinecraftLangSourceStore().apply {
             replaceFile(
                 path = "zh_cn.lang",
@@ -31,7 +31,7 @@ class MinecraftLocalizedNavigationResolverTest {
 
         val target = assertNotNull(resolved)
         assertEquals("zh_cn", target.locale)
-        assertEquals(listOf("zh_cn.lang"), target.entries.map(MinecraftLangSourceEntry::filePath))
+        assertEquals(listOf("zh_cn.lang", "en_us.lang"), target.entries.map(MinecraftLangSourceEntry::filePath))
     }
 
     @Test
@@ -56,7 +56,7 @@ class MinecraftLocalizedNavigationResolverTest {
     }
 
     @Test
-    fun returnsAllSamePriorityMatchesForChooserDisplay() {
+    fun keepsAllSamePriorityMatchesAndAppendsOtherLocalesAfterThem() {
         val store = MinecraftLangSourceStore().apply {
             replaceFile(
                 path = "first.json",
@@ -73,6 +73,11 @@ class MinecraftLocalizedNavigationResolverTest {
                 locale = "en_us",
                 entries = listOf(MinecraftLangSourceEntry("en_us", "tooltip.backpack", "en_us.json", 1, 0))
             )
+            replaceFile(
+                path = "ja_jp.json",
+                locale = "ja_jp",
+                entries = listOf(MinecraftLangSourceEntry("ja_jp", "tooltip.backpack", "ja_jp.json", 7, 0))
+            )
         }
 
         val resolved = MinecraftLocalizedNavigationResolver.resolve(
@@ -83,7 +88,10 @@ class MinecraftLocalizedNavigationResolverTest {
 
         val target = assertNotNull(resolved)
         assertEquals("zh_cn", target.locale)
-        assertEquals(listOf("first.json", "second.json"), target.entries.map(MinecraftLangSourceEntry::filePath))
+        assertEquals(
+            listOf("first.json", "second.json", "en_us.json", "ja_jp.json"),
+            target.entries.map(MinecraftLangSourceEntry::filePath)
+        )
     }
 
     @Test

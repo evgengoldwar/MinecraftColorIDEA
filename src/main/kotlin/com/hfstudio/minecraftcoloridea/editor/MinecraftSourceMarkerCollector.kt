@@ -27,14 +27,19 @@ class MinecraftSourceMarkerCollector {
             config.fallback -> fallbackTokenizer(text, config.compiledFallbackRegex())
             else -> emptyList()
         }
-        if (tokens.isEmpty()) {
+        val allowedRanges = when {
+            grammar != null -> grammarTokensToAllowedRanges(text.length, tokens)
+            tokens.isNotEmpty() -> tokensToAllowedRanges(tokens)
+            else -> emptyList()
+        }
+        if (allowedRanges.isEmpty()) {
             return emptyList()
         }
 
         val formatCodes = MinecraftVersionRegistry.profile(config)
         val markers = mutableListOf<MinecraftSourceMarker>()
 
-        tokensToAllowedRanges(tokens).forEach { range ->
+        allowedRanges.forEach { range ->
             var index = range.start
             while (index < range.end) {
                 val hexToken = ExtendedColorParser.matchAt(text, index)
@@ -140,6 +145,60 @@ class MinecraftSourceMarkerCollector {
             if (current < token.innerEnd) {
                 flattened += IntRangeSpan(current, token.innerEnd)
             }
+        }
+
+        return flattened.filter { it.start < it.end }
+    }
+
+    private fun grammarTokensToAllowedRanges(textLength: Int, tokens: List<MinecraftToken>): List<IntRangeSpan> {
+        if (textLength <= 0) {
+            return emptyList()
+        }
+
+        if (tokens.isEmpty()) {
+            return listOf(IntRangeSpan(0, textLength))
+        }
+
+        val flattened = mutableListOf<IntRangeSpan>()
+        var current = 0
+
+        tokens.forEach { token ->
+            if (current < token.start) {
+                flattened += IntRangeSpan(current, token.start)
+            }
+            flattened += tokenToAllowedRanges(token)
+            current = token.end
+        }
+
+        if (current < textLength) {
+            flattened += IntRangeSpan(current, textLength)
+        }
+
+        return flattened.filter { it.start < it.end }
+    }
+
+    private fun tokenToAllowedRanges(token: MinecraftToken): List<IntRangeSpan> {
+        if (token.type.startsWith(MinecraftGrammar.scope())) {
+            return token.tokens.flatMap(::tokenToAllowedRanges)
+        }
+
+        if (token.tokens.isEmpty()) {
+            return listOf(IntRangeSpan(token.innerStart, token.innerEnd))
+        }
+
+        val flattened = mutableListOf<IntRangeSpan>()
+        var current = token.innerStart
+
+        token.tokens.forEach { child ->
+            if (current < child.start) {
+                flattened += IntRangeSpan(current, child.start)
+            }
+            flattened += tokenToAllowedRanges(child)
+            current = child.end
+        }
+
+        if (current < token.innerEnd) {
+            flattened += IntRangeSpan(current, token.innerEnd)
         }
 
         return flattened.filter { it.start < it.end }

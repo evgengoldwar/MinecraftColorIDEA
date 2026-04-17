@@ -11,7 +11,7 @@ import kotlin.test.assertNull
 
 class MinecraftGotoLocalizedDeclarationHandlerTest {
     @Test
-    fun declarationHandlerUsesSamePreferredTargetAsPopupAction() {
+    fun declarationHandlerUsesSameOrderedTargetsAsPopupActionAcrossLocales() {
         val store = MinecraftLangSourceStore().apply {
             replaceFile(
                 path = "assets/example/lang/zh_cn.json",
@@ -47,6 +47,10 @@ class MinecraftGotoLocalizedDeclarationHandlerTest {
             actionResolved.target.entries.map(MinecraftLangSourceEntry::filePath),
             targets.map(PsiElement::toString)
         )
+        assertEquals(
+            listOf("assets/example/lang/zh_cn.json", "assets/example/lang/en_us.json"),
+            targets.map(PsiElement::toString)
+        )
     }
 
     @Test
@@ -80,7 +84,11 @@ class MinecraftGotoLocalizedDeclarationHandlerTest {
 
         val targets = assertNotNull(declarationTargets)
         assertEquals(
-            listOf("assets/example/lang/first.json", "assets/example/lang/second.json"),
+            listOf(
+                "assets/example/lang/first.json",
+                "assets/example/lang/second.json",
+                "assets/example/lang/en_us.json"
+            ),
             targets.map(PsiElement::toString)
         )
     }

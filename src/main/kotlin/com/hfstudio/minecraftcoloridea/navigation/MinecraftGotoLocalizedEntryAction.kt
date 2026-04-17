@@ -21,6 +21,15 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.ui.SimpleListCellRenderer
 
 class MinecraftGotoLocalizedEntryAction : AnAction(), DumbAware {
+    internal data class ChooserPresentation(
+        val locationText: String,
+        val fileNameText: String
+    ) {
+        fun toHtml(): String {
+            return "<html><table width='100%'><tr><td>$locationText</td><td align='right'><b>$fileNameText</b></td></tr></table></html>"
+        }
+    }
+
     internal sealed interface NavigationRequestResult {
         data object IndexNotReady : NavigationRequestResult
         data object NotFound : NavigationRequestResult
@@ -61,7 +70,7 @@ class MinecraftGotoLocalizedEntryAction : AnAction(), DumbAware {
                     .createPopupChooserBuilder(target.entries)
                     .setTitle(MinecraftColorBundle.message("chooser.goto.localized.entry.title"))
                     .setRenderer(SimpleListCellRenderer.create("") { entry ->
-                        entry?.let { "${it.filePath}:${it.lineNumber}" }.orEmpty()
+                        entry?.let(::chooserPresentation)?.toHtml().orEmpty()
                     })
                     .setItemChosenCallback { entry ->
                         navigate(context.project, context.editor, entry)
@@ -130,10 +139,23 @@ class MinecraftGotoLocalizedEntryAction : AnAction(), DumbAware {
             .resolveLocaleTargetOrder(baseConfig)
 
         return resolveNavigationRequest(context.key, sourceIndexStamp) { key ->
-            MinecraftLocalizedNavigationResolver.resolve(key, localeOrder) { resolvedKey, locale ->
-                sourceIndex.lookup(resolvedKey, listOf(locale))
-            }
+            MinecraftLocalizedNavigationResolver.resolve(key, localeOrder, sourceIndex::lookupAll)
         }
+    }
+
+    internal fun chooserPresentation(entry: MinecraftLangSourceEntry): ChooserPresentation {
+        val normalizedPath = entry.filePath.replace('\\', '/')
+        val fileName = normalizedPath.substringAfterLast('/')
+        val parentPath = normalizedPath.substringBeforeLast('/', missingDelimiterValue = "")
+        val locationText = if (parentPath.isNotEmpty()) {
+            "$parentPath:${entry.lineNumber}"
+        } else {
+            "Line ${entry.lineNumber}"
+        }
+        return ChooserPresentation(
+            locationText = locationText,
+            fileNameText = fileName.ifEmpty { normalizedPath }
+        )
     }
 
     private fun navigate(project: Project, editor: Editor, entry: MinecraftLangSourceEntry) {

@@ -27,6 +27,17 @@ class MinecraftColorBundleTest {
                 Locale.SIMPLIFIED_CHINESE
             )
         )
+        assertEquals(
+            "Go to Code Usage",
+            MinecraftColorBundle.message("action.MinecraftColor.GotoCodeUsage.text")
+        )
+        assertEquals(
+            "\u8df3\u8f6c\u5230\u4ee3\u7801\u5f15\u7528",
+            MinecraftColorBundle.messageForLocale(
+                "action.MinecraftColor.GotoCodeUsage.text",
+                Locale.SIMPLIFIED_CHINESE
+            )
+        )
     }
 
     @Test
@@ -44,6 +55,7 @@ class MinecraftColorBundleTest {
         assertTrue(pluginXml.contains("<name>Minecraft Color Highlighter</name>"))
         assertFalse(pluginXml.contains("<name>%"))
         assertTrue(pluginXml.contains("""id="MinecraftColor.GotoLocalizedEntry""""))
+        assertTrue(pluginXml.contains("""id="MinecraftColor.GotoCodeUsage""""))
         assertTrue(pluginXml.contains("""<applicationConfigurable"""))
         assertTrue(pluginXml.contains("""key="settings.display.name""""))
         assertTrue(pluginXml.contains("""bundle="messages.MinecraftColorBundle""""))

@@ -54,6 +54,36 @@ class MinecraftProjectFileRulesTest {
         )
     }
 
+    @Test
+    fun collectsStaleProjectCodePathsForDeleteRenameAndMoveEvents() {
+        val oldParent = TestVirtualFile(
+            pathValue = "E:/Github/ExampleMod/src/main/java/example",
+            directory = true
+        )
+        val newParent = TestVirtualFile(
+            pathValue = "E:/Github/ExampleMod/build/generated/example",
+            directory = true
+        )
+        val codeFile = TestVirtualFile(
+            pathValue = "${oldParent.path}/BackpackItem.java",
+            parentFile = oldParent
+        )
+
+        val stalePaths = MinecraftProjectFileRules.staleProjectCodeUsagePaths(
+            projectBasePath = "E:/Github/ExampleMod",
+            events = listOf(
+                VFileDeleteEvent(this, codeFile, false),
+                VFilePropertyChangeEvent(this, codeFile, VirtualFile.PROP_NAME, "BackpackItem.java", "SatchelItem.java", false),
+                VFileMoveEvent(this, codeFile, newParent)
+            )
+        )
+
+        assertEquals(
+            setOf("E:/Github/ExampleMod/src/main/java/example/BackpackItem.java"),
+            stalePaths
+        )
+    }
+
     private class TestVirtualFile(
         private val pathValue: String,
         private val directory: Boolean = false,

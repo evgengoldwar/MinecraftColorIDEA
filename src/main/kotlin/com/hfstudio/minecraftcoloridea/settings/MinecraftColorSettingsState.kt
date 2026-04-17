@@ -27,6 +27,7 @@ class MinecraftColorSettingsState : PersistentStateComponent<MinecraftColorSetti
         var preferredLocale: String = "en_us"
         var secondaryLocale: String = "zh_cn"
         var extraLocalizationMethods: MutableList<String> = mutableListOf()
+        var maxEnumeratedKeys: Int = MinecraftColorConfig.DEFAULT_MAX_ENUMERATED_KEYS
     }
 
     private var state = StoredState()
@@ -56,6 +57,7 @@ class MinecraftColorSettingsState : PersistentStateComponent<MinecraftColorSetti
             .map(String::trim)
             .filter(String::isNotEmpty)
             .toSet()
+        val maxEnumeratedKeys = normalizeMaxEnumeratedKeys(state.maxEnumeratedKeys)
 
         return try {
             MinecraftColorConfig(
@@ -68,7 +70,8 @@ class MinecraftColorSettingsState : PersistentStateComponent<MinecraftColorSetti
                 effectiveJavaVersionId = effectiveJavaVersionId,
                 preferredLocale = state.preferredLocale.ifBlank { defaultConfig.preferredLocale },
                 secondaryLocale = state.secondaryLocale.ifBlank { defaultConfig.secondaryLocale },
-                extraLocalizationMethods = extraMethods
+                extraLocalizationMethods = extraMethods,
+                maxEnumeratedKeys = maxEnumeratedKeys
             ).also { it.compiledFallbackRegex() }
         } catch (error: IllegalArgumentException) {
             thisLogger().warn("Invalid Minecraft Color fallback regex configuration. Falling back to defaults.", error)
@@ -81,7 +84,8 @@ class MinecraftColorSettingsState : PersistentStateComponent<MinecraftColorSetti
                 effectiveJavaVersionId = effectiveJavaVersionId,
                 preferredLocale = state.preferredLocale.ifBlank { defaultConfig.preferredLocale },
                 secondaryLocale = state.secondaryLocale.ifBlank { defaultConfig.secondaryLocale },
-                extraLocalizationMethods = extraMethods
+                extraLocalizationMethods = extraMethods,
+                maxEnumeratedKeys = maxEnumeratedKeys
             )
         }
     }
@@ -97,5 +101,15 @@ class MinecraftColorSettingsState : PersistentStateComponent<MinecraftColorSetti
         state.preferredLocale = config.preferredLocale
         state.secondaryLocale = config.secondaryLocale
         state.extraLocalizationMethods = config.extraLocalizationMethods.toMutableList()
+        state.maxEnumeratedKeys = normalizeMaxEnumeratedKeys(config.maxEnumeratedKeys)
+    }
+
+    private fun normalizeMaxEnumeratedKeys(value: Int?): Int {
+        if (value == null) {
+            return MinecraftColorConfig.DEFAULT_MAX_ENUMERATED_KEYS
+        }
+        return value.takeIf {
+            it in MinecraftColorConfig.MIN_MAX_ENUMERATED_KEYS..MinecraftColorConfig.MAX_MAX_ENUMERATED_KEYS
+        } ?: MinecraftColorConfig.DEFAULT_MAX_ENUMERATED_KEYS
     }
 }

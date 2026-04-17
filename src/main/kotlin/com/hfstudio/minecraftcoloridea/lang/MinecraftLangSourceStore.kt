@@ -39,6 +39,13 @@ class MinecraftLangSourceStore {
         }
     }
 
+    fun lookupAll(key: String): List<MinecraftLangSourceEntry>? {
+        val entries = indexByLocaleKey().values
+            .mapNotNull { localeEntries -> localeEntries[key] }
+            .flatten()
+        return entries.takeIf(List<MinecraftLangSourceEntry>::isNotEmpty)
+    }
+
     private fun indexByLocaleKey(): Map<String, Map<String, List<MinecraftLangSourceEntry>>> {
         if (!dirty) {
             return entriesByLocaleKey

@@ -1,5 +1,6 @@
 package com.hfstudio.minecraftcoloridea.navigation
 
+import com.hfstudio.minecraftcoloridea.lang.MinecraftLangSourceEntry
 import com.intellij.openapi.actionSystem.Presentation
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -45,5 +46,21 @@ class MinecraftGotoLocalizedEntryActionTest {
 
         assertEquals(MinecraftGotoLocalizedEntryAction.NavigationRequestResult.IndexNotReady, resolved)
         assertEquals(0, lookupCalls)
+    }
+
+    @Test
+    fun chooserPresentationShowsParentPathAndFileNameSeparately() {
+        val presentation = MinecraftGotoLocalizedEntryAction().chooserPresentation(
+            MinecraftLangSourceEntry(
+                locale = "zh_cn",
+                key = "tooltip.backpack",
+                filePath = "src/main/resources/assets/example/lang/zh_CN.lang",
+                lineNumber = 5,
+                lineStartOffset = 0
+            )
+        )
+
+        assertEquals("src/main/resources/assets/example/lang:5", presentation.locationText)
+        assertEquals("zh_CN.lang", presentation.fileNameText)
     }
 }

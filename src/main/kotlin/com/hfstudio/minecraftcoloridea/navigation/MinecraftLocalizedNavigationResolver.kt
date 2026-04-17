@@ -27,31 +27,39 @@ object MinecraftLocalizedNavigationResolver {
         localeOrder: List<String>,
         sourceStore: MinecraftLangSourceStore
     ): MinecraftResolvedNavigationTarget? {
-        return resolve(key, localeOrder) { lookupKey, locale ->
-            sourceStore.lookup(lookupKey, listOf(locale))
-        }
+        return resolve(key, localeOrder, sourceStore::lookupAll)
     }
 
     fun resolve(
         key: String,
         localeOrder: List<String>,
-        lookup: (String, String) -> List<MinecraftLangSourceEntry>?
+        lookupAll: (String) -> List<MinecraftLangSourceEntry>?
     ): MinecraftResolvedNavigationTarget? {
         val normalizedOrder = localeOrder
             .map(String::trim)
             .filter(String::isNotEmpty)
             .map(String::lowercase)
             .distinct()
-
-        for (locale in normalizedOrder) {
-            val entries = lookup(key, locale)?.takeIf(List<MinecraftLangSourceEntry>::isNotEmpty) ?: continue
-            return MinecraftResolvedNavigationTarget(
-                key = key,
-                locale = entries.first().locale.lowercase(),
-                entries = entries
+        val localeRanks = normalizedOrder.withIndex().associate { (index, locale) -> locale to index }
+        val entries = lookupAll(key).orEmpty()
+            .sortedWith(
+                compareBy<MinecraftLangSourceEntry>(
+                    { localeRanks[it.locale.lowercase()] ?: Int.MAX_VALUE },
+                    { if (it.locale.lowercase() in localeRanks) 0 else 1 },
+                    { it.locale.lowercase() },
+                    { it.filePath.lowercase() },
+                    { it.lineNumber }
+                )
             )
+
+        if (entries.isEmpty()) {
+            return null
         }
 
-        return null
+        return MinecraftResolvedNavigationTarget(
+            key = key,
+            locale = entries.first().locale.lowercase(),
+            entries = entries
+        )
     }
 }

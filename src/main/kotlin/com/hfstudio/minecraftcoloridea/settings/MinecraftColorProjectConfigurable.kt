@@ -20,8 +20,10 @@ class MinecraftColorProjectConfigurable(private val project: Project) : Configur
     private val overrideField = JBTextField()
     private val preferredLocaleField = JBTextField()
     private val secondaryLocaleField = JBTextField()
+    private val maxEnumeratedKeysOverrideField = JBTextField()
     private val detectedVersionLabel = JBLabel()
     private val effectiveVersionLabel = JBLabel()
+    private val effectiveMaxEnumeratedKeysLabel = JBLabel()
 
     private var component: JComponent? = null
 
@@ -43,8 +45,20 @@ class MinecraftColorProjectConfigurable(private val project: Project) : Configur
                     1,
                     false
                 )
+                .addLabeledComponent(
+                    MinecraftColorBundle.message("settings.project.max.enumerated.keys.override"),
+                    maxEnumeratedKeysOverrideField,
+                    1,
+                    false
+                )
                 .addLabeledComponent(MinecraftColorBundle.message("settings.project.detected.java.version"), detectedVersionLabel, 1, false)
                 .addLabeledComponent(MinecraftColorBundle.message("settings.project.effective.java.version"), effectiveVersionLabel, 1, false)
+                .addLabeledComponent(
+                    MinecraftColorBundle.message("settings.project.effective.max.enumerated.keys"),
+                    effectiveMaxEnumeratedKeysLabel,
+                    1,
+                    false
+                )
                 .panel
 
             component = JPanel(BorderLayout()).apply {
@@ -58,14 +72,17 @@ class MinecraftColorProjectConfigurable(private val project: Project) : Configur
     override fun isModified(): Boolean {
         return overrideField.text.trim() != projectSettings.projectJavaVersionOverride().orEmpty() ||
             preferredLocaleField.text.trim() != projectSettings.preferredLocaleOverride().orEmpty() ||
-            secondaryLocaleField.text.trim() != projectSettings.secondaryLocaleOverride().orEmpty()
+            secondaryLocaleField.text.trim() != projectSettings.secondaryLocaleOverride().orEmpty() ||
+            maxEnumeratedKeysOverrideField.text.trim() != projectSettings.maxEnumeratedKeysOverride().orEmpty()
     }
 
     override fun apply() {
         projectSettings.setProjectJavaVersionOverride(overrideField.text.trim())
         projectSettings.setPreferredLocaleOverride(preferredLocaleField.text.trim())
         projectSettings.setSecondaryLocaleOverride(secondaryLocaleField.text.trim())
+        projectSettings.setMaxEnumeratedKeysOverride(maxEnumeratedKeysOverrideField.text.trim())
         overrideField.text = projectSettings.projectJavaVersionOverride().orEmpty()
+        maxEnumeratedKeysOverrideField.text = projectSettings.maxEnumeratedKeysOverride().orEmpty()
         refreshLabels()
     }
 
@@ -73,6 +90,7 @@ class MinecraftColorProjectConfigurable(private val project: Project) : Configur
         overrideField.text = projectSettings.projectJavaVersionOverride().orEmpty()
         preferredLocaleField.text = projectSettings.preferredLocaleOverride().orEmpty()
         secondaryLocaleField.text = projectSettings.secondaryLocaleOverride().orEmpty()
+        maxEnumeratedKeysOverrideField.text = projectSettings.maxEnumeratedKeysOverride().orEmpty()
         refreshLabels()
     }
 
@@ -82,8 +100,12 @@ class MinecraftColorProjectConfigurable(private val project: Project) : Configur
             detectedVersionId = detected?.versionId,
             globalDefaultVersionId = globalSettings.toConfig().effectiveJavaVersionId
         )
+        val effectiveMaxEnumeratedKeys = projectSettings.resolveMaxEnumeratedKeys(
+            globalSettings.toConfig().maxEnumeratedKeys
+        )
 
         detectedVersionLabel.text = detected?.versionId ?: MinecraftColorBundle.message("settings.project.version.not.detected")
         effectiveVersionLabel.text = effective
+        effectiveMaxEnumeratedKeysLabel.text = effectiveMaxEnumeratedKeys.toString()
     }
 }

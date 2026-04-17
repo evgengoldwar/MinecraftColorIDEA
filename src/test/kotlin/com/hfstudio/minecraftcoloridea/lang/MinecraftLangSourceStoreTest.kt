@@ -40,4 +40,28 @@ class MinecraftLangSourceStoreTest {
 
         assertNull(store.lookup("tooltip.first", listOf("zh_cn")))
     }
+
+    @Test
+    fun lookupAllReturnsEntriesAcrossAllLocales() {
+        val store = MinecraftLangSourceStore()
+        store.replaceFile(
+            path = "src/main/resources/assets/example/lang/zh_cn.lang",
+            locale = "zh_cn",
+            entries = listOf(
+                MinecraftLangSourceEntry("zh_cn", "tooltip.first", "zh_cn.lang", 1, 0)
+            )
+        )
+        store.replaceFile(
+            path = "src/main/resources/assets/example/lang/en_us.lang",
+            locale = "en_us",
+            entries = listOf(
+                MinecraftLangSourceEntry("en_us", "tooltip.first", "en_us.lang", 2, 10)
+            )
+        )
+
+        assertEquals(
+            listOf("zh_cn.lang", "en_us.lang"),
+            store.lookupAll("tooltip.first")!!.map(MinecraftLangSourceEntry::filePath)
+        )
+    }
 }

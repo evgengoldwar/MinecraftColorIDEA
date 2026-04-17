@@ -93,4 +93,27 @@ class MinecraftColorProjectSettingsStateTest {
 
         assertEquals("1.21.10", resolved)
     }
+
+    @Test
+    fun projectInferenceLimitOverrideFallsBackToGlobalWhenUnset() {
+        val state = MinecraftColorProjectSettingsState()
+
+        assertEquals(8, state.resolveMaxEnumeratedKeys(globalDefault = 8))
+    }
+
+    @Test
+    fun projectInferenceLimitOverrideReplacesGlobalWhenValid() {
+        val state = MinecraftColorProjectSettingsState()
+        state.setMaxEnumeratedKeysOverride("16")
+
+        assertEquals(16, state.resolveMaxEnumeratedKeys(globalDefault = 8))
+    }
+
+    @Test
+    fun invalidProjectInferenceLimitOverrideFallsBackToGlobal() {
+        val state = MinecraftColorProjectSettingsState()
+        state.setMaxEnumeratedKeysOverride("200")
+
+        assertEquals(8, state.resolveMaxEnumeratedKeys(globalDefault = 8))
+    }
 }
