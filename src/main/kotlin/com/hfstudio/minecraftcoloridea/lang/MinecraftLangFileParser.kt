@@ -1,5 +1,7 @@
 package com.hfstudio.minecraftcoloridea.lang
 
+import com.hfstudio.minecraftcoloridea.core.MinecraftQuotedStringScanner
+
 object MinecraftLangFileParser {
     fun parseLang(content: String): Map<String, String> {
         return parseLangLines(content).associate { line ->
@@ -74,20 +76,34 @@ object MinecraftLangFileParser {
         return lines
     }
 
-    private fun parseJsonMatches(content: String): Sequence<MatchResult> {
-        val pattern = Regex(""""((?:\\.|[^"])*)"\s*:\s*"((?:\\.|[^"])*)"""")
-        return pattern.findAll(content)
-    }
-
     private fun parseJsonEntries(content: String): List<ParsedLangLine> {
-        return parseJsonMatches(content).map { match ->
-            ParsedLangLine(
-                key = decode(match.groupValues[1]),
-                value = decode(match.groupValues[2]),
-                lineNumber = lineNumberAt(content, match.range.first),
-                lineStartOffset = lineStartOffsetAt(content, match.range.first)
+        val entries = mutableListOf<ParsedLangLine>()
+        val tokens = MinecraftQuotedStringScanner.findAll(content)
+        var index = 0
+
+        while (index < tokens.size) {
+            val keyToken = tokens[index]
+            val colonIndex = content.indexOfFirstNonWhitespace(keyToken.fullEndExclusive)
+            if (colonIndex !in content.indices || content[colonIndex] != ':') {
+                index += 1
+                continue
+            }
+
+            val valueStart = content.indexOfFirstNonWhitespace(colonIndex + 1)
+            val valueToken = tokens.getOrNull(index + 1)
+                ?.takeIf { it.fullStart == valueStart }
+                ?: break
+
+            entries += ParsedLangLine(
+                key = decode(keyToken.rawContent),
+                value = decode(valueToken.rawContent),
+                lineNumber = lineNumberAt(content, keyToken.fullStart),
+                lineStartOffset = lineStartOffsetAt(content, keyToken.fullStart)
             )
-        }.toList()
+            index += 2
+        }
+
+        return entries
     }
 
     private fun findLineEnd(content: String, start: Int): Int {
@@ -133,5 +149,13 @@ object MinecraftLangFileParser {
         return value
             .replace("\\\"", "\"")
             .replace("\\\\", "\\")
+    }
+
+    private fun String.indexOfFirstNonWhitespace(startIndex: Int): Int {
+        var index = startIndex
+        while (index < length && this[index].isWhitespace()) {
+            index += 1
+        }
+        return index
     }
 }

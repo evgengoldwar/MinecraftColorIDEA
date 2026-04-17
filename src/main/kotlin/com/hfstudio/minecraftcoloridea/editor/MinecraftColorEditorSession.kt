@@ -29,7 +29,6 @@ import com.intellij.openapi.editor.markup.TextAttributes
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiManager
-import com.intellij.ui.ColorUtil
 import com.intellij.util.Alarm
 import java.awt.Color
 import java.awt.Font
@@ -380,12 +379,14 @@ class MinecraftColorEditorSession(
             return
         }
 
-        val color = ColorUtil.fromHex(marker.colorHex)
+        val color = MinecraftSourceMarkerEditSupport.parseRenderColorHex(marker.colorHex)
         when (marker.marker) {
             MinecraftMarker.FOREGROUND -> attributes.foregroundColor = color
             MinecraftMarker.BACKGROUND -> {
                 attributes.backgroundColor = color
-                attributes.foregroundColor = ColorUtil.fromHex(marker.contrastHex ?: "#FFFFFF")
+                attributes.foregroundColor = MinecraftSourceMarkerEditSupport.parseRenderColorHex(
+                    marker.contrastHex ?: "#FFFFFF"
+                )
             }
             MinecraftMarker.OUTLINE -> attributes.withAdditionalEffect(EffectType.ROUNDED_BOX, color)
             MinecraftMarker.UNDERLINE -> attributes.withAdditionalEffect(EffectType.LINE_UNDERSCORE, color)

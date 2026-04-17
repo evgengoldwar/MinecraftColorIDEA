@@ -4,7 +4,6 @@ import com.hfstudio.minecraftcoloridea.lang.MinecraftResolvedPreview
 import com.intellij.openapi.editor.EditorCustomElementRenderer
 import com.intellij.openapi.editor.Inlay
 import com.intellij.openapi.editor.markup.TextAttributes
-import com.intellij.ui.ColorUtil
 import java.awt.Font
 import java.awt.Graphics
 import java.awt.Rectangle
@@ -46,7 +45,7 @@ class MinecraftPreviewRenderer(
             val font = baseFont.deriveFont(fontStyle(segment))
             val metrics = inlay.editor.contentComponent.getFontMetrics(font)
             val width = metrics.stringWidth(segment.text)
-            val color = segment.colorHex?.let(ColorUtil::fromHex)
+            val color = segment.colorHex?.let(MinecraftSourceMarkerEditSupport::parseRenderColorHex)
                 ?: textAttributes.foregroundColor
                 ?: inlay.editor.colorsScheme.defaultForeground
 

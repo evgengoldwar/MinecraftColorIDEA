@@ -1,5 +1,6 @@
 package com.hfstudio.minecraftcoloridea.lang
 
+import com.hfstudio.minecraftcoloridea.core.MinecraftQuotedStringScanner
 import com.hfstudio.minecraftcoloridea.core.MinecraftColorConfig
 import com.hfstudio.minecraftcoloridea.core.ExtendedColorParser
 import com.hfstudio.minecraftcoloridea.core.FormattingState
@@ -17,8 +18,6 @@ class MinecraftLocalizationResolver(
         val baseColorHex: String?,
         val baseFormatting: FormattingState
     )
-
-    private val literalPattern = Regex(""""((?:\\.|[^"])*)"""")
 
     fun resolveExpression(source: String, localeOrder: List<String>): MinecraftResolvedPreview? {
         val baseColorHex = resolveInheritedColor(source)
@@ -87,9 +86,9 @@ class MinecraftLocalizationResolver(
         excludedSourceRanges: List<IntRange> = emptyList()
     ): MinecraftResolvedPreview? {
         val resolvedKeys = referencedKeys.toMutableSet()
-        val pieces = literalPattern.findAll(source)
-            .map { match ->
-                val decoded = decodeLiteral(match.groupValues[1])
+        val pieces = MinecraftQuotedStringScanner.findAll(source)
+            .map { token ->
+                val decoded = decodeLiteral(token.rawContent)
                 val localized = index.lookup(decoded, localeOrder)
                 if (localized != null) {
                     resolvedKeys += decoded

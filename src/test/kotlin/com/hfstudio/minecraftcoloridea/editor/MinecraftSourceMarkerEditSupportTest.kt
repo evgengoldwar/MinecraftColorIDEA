@@ -51,4 +51,54 @@ class MinecraftSourceMarkerEditSupportTest {
         assertEquals("0x40ABCDEF", MinecraftSourceMarkerEditSupport.formatHexReplacement(hexMarker, Color(0xAB, 0xCD, 0xEF, 0x40)))
         assertEquals("\"\\u00a7cText\"", MinecraftSourceMarkerEditSupport.replaceCodeChar("\"\\u00a7eText\"", codeMarker, 'c'))
     }
+
+    @Test
+    fun replaceTextRangeTracksExpandedHexLengthAcrossSequentialUpdates() {
+        val marker = MinecraftSourceMarker(
+            start = 0,
+            end = 7,
+            rawText = "#FFFFFF",
+            kind = MinecraftSourceMarkerKind.HEX_COLOR,
+            colorHex = "#ffffff",
+            hexFormat = MinecraftSourceHexFormat.HASH,
+            hasAlpha = false
+        )
+        var text = marker.rawText
+        var currentEnd = marker.end
+
+        MinecraftSourceMarkerEditSupport.replaceTextRange(
+            source = text,
+            start = marker.start,
+            end = currentEnd,
+            replacement = MinecraftSourceMarkerEditSupport.formatHexReplacement(
+                marker,
+                Color(0xFF, 0xFF, 0xFF, 0x00)
+            )
+        ).also { result ->
+            text = result.text
+            currentEnd = result.end
+        }
+        MinecraftSourceMarkerEditSupport.replaceTextRange(
+            source = text,
+            start = marker.start,
+            end = currentEnd,
+            replacement = MinecraftSourceMarkerEditSupport.formatHexReplacement(
+                marker,
+                Color(0xFF, 0x99, 0xFF, 0x11)
+            )
+        ).also { result ->
+            text = result.text
+            currentEnd = result.end
+        }
+
+        assertEquals("#11FF99FF", text)
+        assertEquals(text.length, currentEnd)
+    }
+
+    @Test
+    fun parseRenderColorHexPreservesArgbOrdering() {
+        val color = MinecraftSourceMarkerEditSupport.parseRenderColorHex("#DD64D7FF")
+
+        assertEquals(Color(0x64, 0xD7, 0xFF, 0xDD), color)
+    }
 }

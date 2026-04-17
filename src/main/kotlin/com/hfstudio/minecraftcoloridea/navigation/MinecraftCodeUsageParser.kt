@@ -1,5 +1,6 @@
 package com.hfstudio.minecraftcoloridea.navigation
 
+import com.hfstudio.minecraftcoloridea.core.MinecraftQuotedStringScanner
 import com.hfstudio.minecraftcoloridea.lang.MinecraftLocalizationCallMatch
 import com.hfstudio.minecraftcoloridea.lang.MinecraftLocalizationCallParser
 
@@ -24,7 +25,6 @@ class MinecraftCodeUsageParser(
         "I18n.get",
         "LangHelpers.localize"
     )
-    private val literalPattern = Regex(""""((?:\\.|[^"])*)"""")
     private val keyPattern = Regex("""[A-Za-z0-9_.-]+\.[A-Za-z0-9_.-]+""")
 
     fun parseFile(
@@ -79,17 +79,16 @@ class MinecraftCodeUsageParser(
     }
 
     private fun findExplicitLiteralKeys(source: String): List<RawLiteralKey> {
-        return literalPattern.findAll(source)
-            .mapNotNull { match ->
-                val group = match.groups[1] ?: return@mapNotNull null
-                val key = MinecraftLocalizationCallParser.decodeLiteral(group.value)
+        return MinecraftQuotedStringScanner.findAll(source)
+            .mapNotNull { token ->
+                val key = MinecraftLocalizationCallParser.decodeLiteral(token.rawContent)
                 if (!keyPattern.matches(key)) {
                     return@mapNotNull null
                 }
 
                 RawLiteralKey(
                     key = key,
-                    range = group.range
+                    range = token.contentRange ?: return@mapNotNull null
                 )
             }
             .toList()

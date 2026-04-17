@@ -119,6 +119,27 @@ class MinecraftLocalizationKeyLocatorTest {
     }
 
     @Test
+    fun declarationModeTreatsQuotedKeyBoundariesAsClickable() {
+        val source = """list.add("tooltip.backpack")"""
+
+        val openingQuote = source.indexOf('"')
+        val closingQuote = source.lastIndexOf('"')
+        val locator = MinecraftLocalizationKeyLocator()
+
+        val openingResolved = locator.locateForDeclaration(
+            source = source,
+            caretOffset = openingQuote
+        )
+        val closingResolved = locator.locateForDeclaration(
+            source = source,
+            caretOffset = closingQuote
+        )
+
+        assertEquals("tooltip.backpack", openingResolved?.key)
+        assertEquals("tooltip.backpack", closingResolved?.key)
+    }
+
+    @Test
     fun resolvesEnclosingCallKeyWhenMultipleSupportedCallsShareLine() {
         val source = """I18n.format("a", foo) + I18n.format("b", bar)"""
         val locator = MinecraftLocalizationKeyLocator()

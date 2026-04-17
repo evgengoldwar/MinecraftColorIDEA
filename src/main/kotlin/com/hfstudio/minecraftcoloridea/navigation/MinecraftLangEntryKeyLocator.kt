@@ -1,13 +1,13 @@
 package com.hfstudio.minecraftcoloridea.navigation
 
+import com.hfstudio.minecraftcoloridea.core.MinecraftQuotedStringScanner
+
 data class MinecraftLocatedLangKey(
     val key: String,
     val range: IntRange
 )
 
 object MinecraftLangEntryKeyLocator {
-    private val jsonKeyPattern = Regex(""""((?:\\.|[^"])*)"\s*:""")
-
     fun locateLang(line: String, caretOffset: Int): MinecraftLocatedLangKey? {
         val separator = line.indexOf('=').takeIf { it >= 0 } ?: return null
         if (caretOffset >= separator) {
@@ -29,12 +29,27 @@ object MinecraftLangEntryKeyLocator {
     }
 
     fun locateJson(line: String, caretOffset: Int): MinecraftLocatedLangKey? {
-        val match = jsonKeyPattern.find(line) ?: return null
-        val group = match.groups[1] ?: return null
-        return if (caretOffset in group.range) {
-            MinecraftLocatedLangKey(group.value, group.range)
-        } else {
-            null
+        return MinecraftQuotedStringScanner.findAll(line)
+            .firstNotNullOfOrNull { token ->
+                val colonIndex = line.indexOfFirstNonWhitespace(token.fullEndExclusive)
+                if (colonIndex !in line.indices || line[colonIndex] != ':') {
+                    return@firstNotNullOfOrNull null
+                }
+
+                val range = token.contentRange ?: return@firstNotNullOfOrNull null
+                if (caretOffset !in range) {
+                    return@firstNotNullOfOrNull null
+                }
+
+                MinecraftLocatedLangKey(token.rawContent, range)
+            }
+    }
+
+    private fun String.indexOfFirstNonWhitespace(startIndex: Int): Int {
+        var index = startIndex
+        while (index < length && this[index].isWhitespace()) {
+            index += 1
         }
+        return index
     }
 }

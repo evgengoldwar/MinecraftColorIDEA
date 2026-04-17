@@ -1,5 +1,6 @@
 package com.hfstudio.minecraftcoloridea.navigation
 
+import com.hfstudio.minecraftcoloridea.core.MinecraftQuotedStringScanner
 import com.hfstudio.minecraftcoloridea.lang.MinecraftLocalizationCallParser
 
 data class MinecraftLocatedKey(
@@ -18,11 +19,15 @@ class MinecraftLocalizationKeyLocator(
 
     private data class ParsedLine(
         val supportedCalls: List<com.hfstudio.minecraftcoloridea.lang.MinecraftLocalizationCallMatch>,
-        val explicitLiterals: List<MinecraftLocatedKey>,
+        val explicitLiterals: List<ExplicitLiteralCandidate>,
         val keyCandidates: List<MinecraftLocatedKey>
     )
 
-    private val literalPattern = Regex(""""((?:\\.|[^"])*)"""")
+    private data class ExplicitLiteralCandidate(
+        val locatedKey: MinecraftLocatedKey,
+        val fullRange: IntRange
+    )
+
     private val keyPattern = Regex("""[A-Za-z0-9_.-]+\.[A-Za-z0-9_.-]+""")
 
     fun locate(source: String, caretOffset: Int): MinecraftLocatedKey? {
@@ -51,8 +56,8 @@ class MinecraftLocalizationKeyLocator(
 
         if (fallbackMode != FallbackMode.NONE) {
             parsed.explicitLiterals
-                .firstOrNull { caretOffset in it.range }
-                ?.let { return it }
+                .firstOrNull { caretOffset in explicitLiteralRange(it, fallbackMode) }
+                ?.let { return it.locatedKey }
         }
 
         return if (fallbackMode == FallbackMode.ACTION) {
@@ -65,13 +70,18 @@ class MinecraftLocalizationKeyLocator(
     private fun parseLine(source: String): ParsedLine {
         val visibleSource = maskCommentSpans(source)
         val supportedCalls = MinecraftLocalizationCallParser.findAll(visibleSource, extraMethodNames)
-        val explicitLiterals = literalPattern.findAll(visibleSource)
-            .mapNotNull { match ->
-                val group = match.groups[1] ?: return@mapNotNull null
+        val explicitLiterals = MinecraftQuotedStringScanner.findAll(visibleSource)
+            .mapNotNull { token ->
+                val contentRange = token.contentRange ?: return@mapNotNull null
                 MinecraftLocatedKey(
-                    key = MinecraftLocalizationCallParser.decodeLiteral(group.value),
-                    range = group.range
-                )
+                    key = MinecraftLocalizationCallParser.decodeLiteral(token.rawContent),
+                    range = contentRange
+                ).let { locatedKey ->
+                    ExplicitLiteralCandidate(
+                        locatedKey = locatedKey,
+                        fullRange = token.fullStart until token.fullEndExclusive
+                    )
+                }
             }
             .toList()
         val candidates = mutableListOf<MinecraftLocatedKey>()
@@ -81,8 +91,8 @@ class MinecraftLocalizationKeyLocator(
         }
 
         explicitLiterals.forEach { literal ->
-            if (keyPattern.matches(literal.key)) {
-                candidates += literal
+            if (keyPattern.matches(literal.locatedKey.key)) {
+                candidates += literal.locatedKey
             }
         }
 
@@ -93,6 +103,17 @@ class MinecraftLocalizationKeyLocator(
                 .distinctBy { "${it.range.first}:${it.range.last}:${it.key}" }
                 .sortedBy { it.range.first }
         )
+    }
+
+    private fun explicitLiteralRange(
+        candidate: ExplicitLiteralCandidate,
+        fallbackMode: FallbackMode
+    ): IntRange {
+        return if (fallbackMode == FallbackMode.DECLARATION) {
+            candidate.fullRange
+        } else {
+            candidate.locatedKey.range
+        }
     }
 
     private fun maskCommentSpans(source: String): String {

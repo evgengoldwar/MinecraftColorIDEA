@@ -36,6 +36,11 @@ class MinecraftSourceMarkerInlaySession(private val editor: Editor) {
         val inlay: Inlay<*>
     )
 
+    private data class MutableMarkerRange(
+        var start: Int,
+        var end: Int
+    )
+
     private data class MinecraftCodeOption(
         val code: Char,
         val colorHex: String? = null,
@@ -98,12 +103,13 @@ class MinecraftSourceMarkerInlaySession(private val editor: Editor) {
             MinecraftSourceMarkerKind.HEX_COLOR -> {
                 val color = MinecraftSourceMarkerEditSupport.parseColor(marker) ?: return
                 val existingWindows = Window.getWindows().toSet()
+                val editableRange = MutableMarkerRange(marker.start, marker.end)
                 ColorPicker.showColorPickerPopup(
                     project,
                     color,
                     { nextColor, _ ->
                         updateMarkerRange(
-                            marker = marker,
+                            range = editableRange,
                             replacement = MinecraftSourceMarkerEditSupport.formatHexReplacement(marker, nextColor)
                         )
                     },
@@ -124,7 +130,7 @@ class MinecraftSourceMarkerInlaySession(private val editor: Editor) {
                     })
                     .setItemChosenCallback { option ->
                         updateMarkerRange(
-                            marker = marker,
+                            range = MutableMarkerRange(marker.start, marker.end),
                             replacement = marker.rawText.replaceRange(
                                 marker.rawText.length - 1,
                                 marker.rawText.length,
@@ -205,25 +211,23 @@ class MinecraftSourceMarkerInlaySession(private val editor: Editor) {
     }
 
     private fun updateMarkerRange(
-        marker: MinecraftSourceMarker,
+        range: MutableMarkerRange,
         replacement: String
     ) {
         val project = editor.project ?: return
-        val rangeMarker = createRangeMarker(marker)
-        try {
-            if (!rangeMarker.isValid) {
-                return
-            }
-
-            WriteCommandAction.runWriteCommandAction(project) {
-                editor.document.replaceString(
-                    rangeMarker.startOffset,
-                    rangeMarker.endOffset,
-                    replacement
-                )
-            }
-        } finally {
-            rangeMarker.dispose()
+        WriteCommandAction.runWriteCommandAction(project) {
+            val normalizedRange = MinecraftSourceMarkerEditSupport.normalizeRange(
+                textLength = editor.document.textLength,
+                start = range.start,
+                end = range.end
+            )
+            editor.document.replaceString(
+                normalizedRange.start,
+                normalizedRange.end,
+                replacement
+            )
+            range.start = normalizedRange.start
+            range.end = normalizedRange.start + replacement.length
         }
     }
 

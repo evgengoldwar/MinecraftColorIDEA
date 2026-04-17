@@ -70,4 +70,17 @@ class MinecraftCodeUsageParserTest {
         assertEquals("gui.backpack.error.remove.stack_low_multiplier", matched?.key)
         assertEquals(MinecraftCodeUsageConfidence.EXACT, matched?.confidence)
     }
+
+    @Test
+    fun ignoresHugeUnterminatedEscapedStringWithoutStackOverflow() {
+        val text = "val broken = \"" + "\\".repeat(200_000) + "x"
+
+        val usages = MinecraftCodeUsageParser().parseFile(
+            filePath = "src/main/kotlin/example/Broken.kt",
+            text = text,
+            maxEnumeratedKeys = 8
+        )
+
+        assertEquals(emptyList(), usages)
+    }
 }
