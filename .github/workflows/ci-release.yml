@@ -1,0 +1,109 @@
+name: CI and Release
+
+on:
+  push:
+  release:
+    types:
+      - published
+
+env:
+  JAVA_VERSION: '21'
+  ARTIFACT_NAME: minecraft-color-idea-plugin
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Build, test, and package plugin
+        run: ./gradlew --no-daemon clean test buildPlugin
+
+      - name: List built files
+        shell: bash
+        run: |
+          shopt -s nullglob
+          files=(build/distributions/*)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No files were produced in build/distributions" >&2
+            exit 1
+          fi
+
+          echo "Built files:"
+          for file in "${files[@]}"; do
+            ls -lh "$file"
+          done
+
+          {
+            echo "## Build artifacts"
+            for file in "${files[@]}"; do
+              size="$(du -h "$file" | cut -f1)"
+              echo "- $(basename "$file") (${size})"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload plugin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: build/distributions/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-release:
+    name: Attach Files to Release
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download built artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: release-artifacts
+
+      - name: List release files
+        shell: bash
+        run: |
+          shopt -s nullglob
+          files=(release-artifacts/*)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No downloaded artifacts found" >&2
+            exit 1
+          fi
+
+          echo "Release files:"
+          for file in "${files[@]}"; do
+            ls -lh "$file"
+          done
+
+          {
+            echo "## Release upload"
+            for file in "${files[@]}"; do
+              size="$(du -h "$file" | cut -f1)"
+              echo "- $(basename "$file") (${size})"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload assets to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/*
