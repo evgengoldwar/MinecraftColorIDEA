@@ -1,5 +1,6 @@
 package com.hfstudio.minecraftcoloridea.settings
 
+import com.hfstudio.minecraftcoloridea.MinecraftColorBundle
 import com.hfstudio.minecraftcoloridea.version.MinecraftVersionDetectionCache
 import com.intellij.openapi.components.service
 import com.intellij.openapi.options.Configurable
@@ -24,16 +25,26 @@ class MinecraftColorProjectConfigurable(private val project: Project) : Configur
 
     private var component: JComponent? = null
 
-    override fun getDisplayName(): String = "Minecraft Color Highlighter"
+    override fun getDisplayName(): String = MinecraftColorBundle.message("settings.display.name")
 
     override fun createComponent(): JComponent {
         if (component == null) {
             val form = FormBuilder.createFormBuilder()
-                .addLabeledComponent("Project Java version override:", overrideField, 1, false)
-                .addLabeledComponent("Project preferred locale override:", preferredLocaleField, 1, false)
-                .addLabeledComponent("Project secondary locale override:", secondaryLocaleField, 1, false)
-                .addLabeledComponent("Detected Java version:", detectedVersionLabel, 1, false)
-                .addLabeledComponent("Effective Java version:", effectiveVersionLabel, 1, false)
+                .addLabeledComponent(MinecraftColorBundle.message("settings.project.java.override"), overrideField, 1, false)
+                .addLabeledComponent(
+                    MinecraftColorBundle.message("settings.project.preferred.locale.override"),
+                    preferredLocaleField,
+                    1,
+                    false
+                )
+                .addLabeledComponent(
+                    MinecraftColorBundle.message("settings.project.secondary.locale.override"),
+                    secondaryLocaleField,
+                    1,
+                    false
+                )
+                .addLabeledComponent(MinecraftColorBundle.message("settings.project.detected.java.version"), detectedVersionLabel, 1, false)
+                .addLabeledComponent(MinecraftColorBundle.message("settings.project.effective.java.version"), effectiveVersionLabel, 1, false)
                 .panel
 
             component = JPanel(BorderLayout()).apply {
@@ -54,6 +65,7 @@ class MinecraftColorProjectConfigurable(private val project: Project) : Configur
         projectSettings.setProjectJavaVersionOverride(overrideField.text.trim())
         projectSettings.setPreferredLocaleOverride(preferredLocaleField.text.trim())
         projectSettings.setSecondaryLocaleOverride(secondaryLocaleField.text.trim())
+        overrideField.text = projectSettings.projectJavaVersionOverride().orEmpty()
         refreshLabels()
     }
 
@@ -71,7 +83,7 @@ class MinecraftColorProjectConfigurable(private val project: Project) : Configur
             globalDefaultVersionId = globalSettings.toConfig().effectiveJavaVersionId
         )
 
-        detectedVersionLabel.text = detected?.versionId ?: "Not detected"
+        detectedVersionLabel.text = detected?.versionId ?: MinecraftColorBundle.message("settings.project.version.not.detected")
         effectiveVersionLabel.text = effective
     }
 }

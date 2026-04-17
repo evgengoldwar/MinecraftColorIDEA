@@ -20,6 +20,8 @@ data class MinecraftDocumentRegion(
     fun overlaps(startOffset: Int, endOffset: Int): Boolean {
         return if (isEmpty()) {
             start in startOffset..endOffset
+        } else if (startOffset >= endOffset) {
+            startOffset in start..endExclusive
         } else {
             start < endOffset && endExclusive > startOffset
         }

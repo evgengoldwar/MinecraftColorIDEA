@@ -29,7 +29,7 @@ data class MinecraftColorConfig(
     val marker: MinecraftMarker = MinecraftMarker.FOREGROUND,
     val fallback: Boolean = true,
     val fallbackRegex: List<String> = DEFAULT_FALLBACK_REGEX,
-    val effectiveJavaVersionId: String = "1.20.1",
+    val effectiveJavaVersionId: String = MinecraftJavaVersion.LATEST_SUPPORTED_ID,
     val preferredLocale: String = "en_us",
     val secondaryLocale: String = "zh_cn",
     val extraLocalizationMethods: Set<String> = emptySet()

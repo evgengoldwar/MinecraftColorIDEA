@@ -34,6 +34,113 @@ class MinecraftVersionDetectorTest {
     }
 
     @Test
+    fun prefersNeoforgeMetadataBeforeGradleHints() {
+        val files = mapOf(
+            "src/main/resources/META-INF/neoforge.mods.toml" to """
+                loaderVersion="[1,)"
+                [[mods]]
+                modId="example"
+                version="1.0.0"
+                [[dependencies.example]]
+                modId="minecraft"
+                versionRange="[1.21.10,1.21.11)"
+            """.trimIndent(),
+            "gradle.properties" to "minecraft_version=1.20.1"
+        )
+
+        val detected = MinecraftVersionDetector().detect(files)
+
+        assertEquals("1.21.10", detected?.versionId)
+        assertEquals(MinecraftVersionSource.NEOFORGE_MODS_TOML, detected?.source)
+    }
+
+    @Test
+    fun prefersMinecraftDependencyVersionOverModVersionInNeoforgeMetadata() {
+        val files = mapOf(
+            "src/main/resources/META-INF/neoforge.mods.toml" to """
+                loaderVersion="[1,)"
+                [[mods]]
+                modId="example"
+                version="1.20.1"
+
+                [[dependencies.example]]
+                modId="minecraft"
+                versionRange="[1.21.10,1.21.11)"
+            """.trimIndent()
+        )
+
+        val detected = MinecraftVersionDetector().detect(files)
+
+        assertEquals("1.21.10", detected?.versionId)
+        assertEquals(MinecraftVersionSource.NEOFORGE_MODS_TOML, detected?.source)
+    }
+
+    @Test
+    fun acceptsTrailingCommentsOnTomlDependencyVersionLines() {
+        val files = mapOf(
+            "src/main/resources/META-INF/neoforge.mods.toml" to """
+                loaderVersion="[1,)"
+                [[mods]]
+                modId="example"
+                version="1.20.1"
+
+                [[dependencies.example]]
+                modId="minecraft"
+                versionRange="[1.21.10,)" # comment
+            """.trimIndent()
+        )
+
+        val detected = MinecraftVersionDetector().detect(files)
+
+        assertEquals("1.21.10", detected?.versionId)
+        assertEquals(MinecraftVersionSource.NEOFORGE_MODS_TOML, detected?.source)
+    }
+
+    @Test
+    fun acceptsTrailingCommentsOnTomlMinecraftModIdLines() {
+        val files = mapOf(
+            "src/main/resources/META-INF/mods.toml" to """
+                modLoader="javafml"
+                loaderVersion="[47,)"
+                license="MIT"
+
+                [[mods]]
+                modId="example"
+                version="1.20.1"
+
+                [[dependencies.example]]
+                modId = "minecraft" # comment
+                versionRange="[1.21.10,)"
+            """.trimIndent()
+        )
+
+        val detected = MinecraftVersionDetector().detect(files)
+
+        assertEquals("1.21.10", detected?.versionId)
+        assertEquals(MinecraftVersionSource.MODS_TOML, detected?.source)
+    }
+
+    @Test
+    fun doesNotFallBackToWholeFileTomlScanWhenMinecraftDependencyBlockIsUnsupported() {
+        val files = mapOf(
+            "src/main/resources/META-INF/neoforge.mods.toml" to """
+                loaderVersion="[1,)"
+                [[mods]]
+                modId="example"
+                version="1.20.1"
+
+                [[dependencies.example]]
+                modId="minecraft"
+                versionRange="[1.22,)"
+            """.trimIndent()
+        )
+
+        val detected = MinecraftVersionDetector().detect(files)
+
+        assertEquals(null, detected)
+    }
+
+    @Test
     fun fallsBackToGradleWhenMetadataAndMainClassCluesAreMissing() {
         val files = mapOf(
             "gradle.properties" to "minecraft_version=1.20.1"

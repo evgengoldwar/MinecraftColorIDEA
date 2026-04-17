@@ -1,6 +1,7 @@
 package com.hfstudio.minecraftcoloridea.settings
 
 import com.hfstudio.minecraftcoloridea.core.MinecraftColorConfig
+import com.hfstudio.minecraftcoloridea.core.MinecraftJavaVersion
 import com.hfstudio.minecraftcoloridea.core.MinecraftMarker
 import com.hfstudio.minecraftcoloridea.core.MinecraftVersion
 import com.intellij.openapi.components.PersistentStateComponent
@@ -22,7 +23,7 @@ class MinecraftColorSettingsState : PersistentStateComponent<MinecraftColorSetti
         var marker: String = MinecraftMarker.FOREGROUND.id
         var fallback: Boolean = true
         var fallbackRegex: MutableList<String> = MinecraftColorConfig.DEFAULT_FALLBACK_REGEX.toMutableList()
-        var globalDefaultJavaVersion: String = "1.20.1"
+        var globalDefaultJavaVersion: String = MinecraftJavaVersion.LATEST_SUPPORTED_ID
         var preferredLocale: String = "en_us"
         var secondaryLocale: String = "zh_cn"
         var extraLocalizationMethods: MutableList<String> = mutableListOf()
@@ -49,6 +50,8 @@ class MinecraftColorSettingsState : PersistentStateComponent<MinecraftColorSetti
             .map(String::trim)
             .filter(String::isNotEmpty)
             .ifEmpty { defaultConfig.fallbackRegex }
+        val effectiveJavaVersionId = MinecraftJavaVersion.fromId(state.globalDefaultJavaVersion)?.id
+            ?: defaultConfig.effectiveJavaVersionId
         val extraMethods = state.extraLocalizationMethods
             .map(String::trim)
             .filter(String::isNotEmpty)
@@ -62,7 +65,7 @@ class MinecraftColorSettingsState : PersistentStateComponent<MinecraftColorSetti
                 marker = marker,
                 fallback = state.fallback,
                 fallbackRegex = fallbackRegex,
-                effectiveJavaVersionId = state.globalDefaultJavaVersion.ifBlank { defaultConfig.effectiveJavaVersionId },
+                effectiveJavaVersionId = effectiveJavaVersionId,
                 preferredLocale = state.preferredLocale.ifBlank { defaultConfig.preferredLocale },
                 secondaryLocale = state.secondaryLocale.ifBlank { defaultConfig.secondaryLocale },
                 extraLocalizationMethods = extraMethods
@@ -75,7 +78,7 @@ class MinecraftColorSettingsState : PersistentStateComponent<MinecraftColorSetti
                 version = version,
                 marker = marker,
                 fallback = state.fallback,
-                effectiveJavaVersionId = state.globalDefaultJavaVersion.ifBlank { defaultConfig.effectiveJavaVersionId },
+                effectiveJavaVersionId = effectiveJavaVersionId,
                 preferredLocale = state.preferredLocale.ifBlank { defaultConfig.preferredLocale },
                 secondaryLocale = state.secondaryLocale.ifBlank { defaultConfig.secondaryLocale },
                 extraLocalizationMethods = extraMethods

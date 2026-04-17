@@ -2,8 +2,10 @@ package com.hfstudio.minecraftcoloridea.editor
 
 import com.hfstudio.minecraftcoloridea.core.MinecraftHighlightEngine
 import com.hfstudio.minecraftcoloridea.lang.MinecraftLangIndexService
+import com.hfstudio.minecraftcoloridea.lang.MinecraftLangSourceIndexService
 import com.hfstudio.minecraftcoloridea.settings.MinecraftColorSettingsState
 import com.hfstudio.minecraftcoloridea.version.MinecraftVersionDetectionCache
+import com.hfstudio.minecraftcoloridea.version.MinecraftVersionSignalFiles
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
@@ -13,9 +15,8 @@ import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.EditorKind
 import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.fileEditor.FileDocumentManager
-import com.intellij.openapi.fileEditor.FileEditorManager
-import com.intellij.openapi.fileEditor.TextEditor
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VirtualFile
 import java.util.concurrent.ConcurrentHashMap
 
 @Service(Service.Level.APP)
@@ -23,18 +24,18 @@ class MinecraftColorApplicationService : Disposable {
     private val settings = service<MinecraftColorSettingsState>()
     private val engine = MinecraftHighlightEngine()
     private val sessions = ConcurrentHashMap<Editor, MinecraftColorEditorSession>()
+    private val externalFiles = MinecraftExternalFileCache()
 
     fun editorCreated(editor: Editor) {
         if (!isSupportedEditor(editor)) {
             return
         }
 
-        sessions.computeIfAbsent(editor) {
-            MinecraftColorEditorSession(it, settings, engine)
-        }.scheduleRefresh()
+        sessionFor(editor)?.scheduleRefresh()
     }
 
     fun editorReleased(editor: Editor) {
+        trackExternalFile(editor, released = true)
         sessions.remove(editor)?.dispose()
     }
 
@@ -48,9 +49,7 @@ class MinecraftColorApplicationService : Disposable {
         )
         editors.forEach { editor ->
             if (isSupportedEditor(editor)) {
-                sessions.computeIfAbsent(editor) {
-                    MinecraftColorEditorSession(it, settings, engine)
-                }.scheduleRefresh(change)
+                sessionFor(editor)?.scheduleRefresh(change)
             }
         }
 
@@ -75,15 +74,16 @@ class MinecraftColorApplicationService : Disposable {
         EditorFactory.getInstance().allEditors
             .asSequence()
             .filter { it.project == project && it.document in documents }
-            .forEach(::editorCreated)
+            .forEach { sessionFor(it)?.scheduleRefresh() }
     }
 
     fun refreshProject(project: Project) {
-        val editors = FileEditorManager.getInstance(project).allEditors
-            .filterIsInstance<TextEditor>()
-            .map(TextEditor::getEditor)
+        val editors = EditorFactory.getInstance().allEditors
+            .asSequence()
+            .filter { it.project == project && isSupportedEditor(it) }
+            .toList()
 
-        editors.forEach(::editorCreated)
+        editors.forEach { sessionFor(it)?.scheduleRefresh() }
     }
 
     override fun dispose() {
@@ -97,10 +97,15 @@ class MinecraftColorApplicationService : Disposable {
             editor.editorKind == EditorKind.MAIN_EDITOR
     }
 
-    private fun handleCrossFileRefresh(project: Project, file: com.intellij.openapi.vfs.VirtualFile, text: String) {
+    private fun handleCrossFileRefresh(project: Project, file: VirtualFile, text: String) {
+        if (!MinecraftEditorFileScope.isProjectOwned(project, file)) {
+            return
+        }
+
         val path = file.path.replace('\\', '/')
 
-        if (isLangFile(path)) {
+        if (MinecraftProjectFileRules.isLangFile(path)) {
+            project.service<MinecraftLangSourceIndexService>().refreshDocument(file, text)
             val changedKeys = project.service<MinecraftLangIndexService>().refreshDocument(file, text)
             if (changedKeys.isNotEmpty()) {
                 val affectedDocuments = project.service<MinecraftProjectRefreshCoordinator>()
@@ -113,23 +118,35 @@ class MinecraftColorApplicationService : Disposable {
             }
         }
 
-        if (isVersionSignalFile(path)) {
+        if (MinecraftVersionSignalFiles.isVersionSignalFile(path)) {
             project.service<MinecraftVersionDetectionCache>().invalidate()
             refreshProject(project)
         }
     }
 
-    private fun isLangFile(path: String): Boolean {
-        return path.contains("/lang/") && (path.endsWith(".lang") || path.endsWith(".json"))
+    private fun sessionFor(editor: Editor): MinecraftColorEditorSession? {
+        if (!isSupportedEditor(editor)) {
+            return null
+        }
+
+        sessions[editor]?.let { return it }
+        trackExternalFile(editor, released = false)
+        return sessions.computeIfAbsent(editor) {
+            MinecraftColorEditorSession(it, settings, engine)
+        }
     }
 
-    private fun isVersionSignalFile(path: String): Boolean {
-        return path.endsWith("/mcmod.info") ||
-            path.endsWith("/mods.toml") ||
-            path.endsWith("/fabric.mod.json") ||
-            path.endsWith("/quilt.mod.json") ||
-            path.endsWith("/build.gradle") ||
-            path.endsWith("/build.gradle.kts") ||
-            path.endsWith("/gradle.properties")
+    private fun trackExternalFile(editor: Editor, released: Boolean) {
+        val project = editor.project ?: return
+        val file = FileDocumentManager.getInstance().getFile(editor.document) ?: return
+        if (MinecraftEditorFileScope.isProjectOwned(project, file)) {
+            return
+        }
+
+        if (released) {
+            externalFiles.markReleased(file.path)
+        } else {
+            externalFiles.markOpened(file.path)
+        }
     }
 }

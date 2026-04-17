@@ -1,6 +1,7 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <id>com.hfstudio.minecraftcoloridea</id>
+    <resource-bundle>messages.MinecraftColorBundle</resource-bundle>
     <name>Minecraft Color Highlighter</name>
     <vendor url="https://github.com/nobu-sh/vscode-mc-color">HFStudio</vendor>
 
@@ -17,14 +18,17 @@
         <applicationService serviceImplementation="com.hfstudio.minecraftcoloridea.editor.MinecraftColorApplicationService"/>
         <applicationConfigurable
                 id="com.hfstudio.minecraftcoloridea.settings"
-                displayName="Minecraft Color Highlighter"
+                key="settings.display.name"
+                bundle="messages.MinecraftColorBundle"
                 parentId="tools"
                 instance="com.hfstudio.minecraftcoloridea.settings.MinecraftColorConfigurable"/>
         <projectConfigurable
                 id="com.hfstudio.minecraftcoloridea.projectSettings"
-                displayName="Minecraft Color Highlighter"
+                key="settings.display.name"
+                bundle="messages.MinecraftColorBundle"
                 parentId="tools"
                 instance="com.hfstudio.minecraftcoloridea.settings.MinecraftColorProjectConfigurable"/>
+        <gotoDeclarationHandler implementation="com.hfstudio.minecraftcoloridea.navigation.MinecraftGotoLocalizedDeclarationHandler"/>
         <editorFactoryListener implementation="com.hfstudio.minecraftcoloridea.editor.MinecraftColorEditorFactoryListener"/>
         <editorFactoryDocumentListener implementation="com.hfstudio.minecraftcoloridea.editor.MinecraftColorDocumentListener"/>
         <backgroundPostStartupActivity implementation="com.hfstudio.minecraftcoloridea.editor.MinecraftColorStartupActivity"/>
@@ -35,4 +39,11 @@
                 class="com.hfstudio.minecraftcoloridea.editor.MinecraftProjectFileListener"
                 topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"/>
     </applicationListeners>
+
+    <actions>
+        <action id="MinecraftColor.GotoLocalizedEntry"
+                class="com.hfstudio.minecraftcoloridea.navigation.MinecraftGotoLocalizedEntryAction">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+    </actions>
 </idea-plugin>

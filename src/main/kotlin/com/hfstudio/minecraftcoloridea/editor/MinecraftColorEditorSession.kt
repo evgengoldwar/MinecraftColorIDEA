@@ -80,6 +80,7 @@ class MinecraftColorEditorSession(
 
         val project = editor.project ?: return
         val langService = project.service<MinecraftLangIndexService>()
+        val projectSettings = project.service<MinecraftColorProjectSettingsState>()
         val versionCache = project.service<MinecraftVersionDetectionCache>()
         if (langService.langIndexStamp() == 0L) {
             langService.refreshProjectResources()
@@ -90,9 +91,11 @@ class MinecraftColorEditorSession(
             baseConfig = settings.toConfig(),
             versionCache = versionCache
         )
+        val localeOrder = projectSettings.resolveLocaleTargetOrder(config)
         val snapshot = createSnapshot(project) ?: return
         val fingerprint = listOf(
             config.hashCode(),
+            localeOrder.joinToString(","),
             snapshot.languageId.orEmpty(),
             langService.langIndexStamp(),
             versionCache.stamp()
@@ -124,6 +127,7 @@ class MinecraftColorEditorSession(
         val previews = resolvePreviews(
             snapshot = snapshot,
             config = config,
+            localeOrder = localeOrder,
             langService = langService
         )
         val sourceMarkers = sourceMarkerCollector.collect(
@@ -285,6 +289,7 @@ class MinecraftColorEditorSession(
     private fun resolvePreviews(
         snapshot: Snapshot,
         config: MinecraftColorConfig,
+        localeOrder: List<String>,
         langService: MinecraftLangIndexService
     ): List<MinecraftResolvedPreview> {
         val normalizedPath = snapshot.filePath?.replace('\\', '/').orEmpty()
@@ -292,7 +297,6 @@ class MinecraftColorEditorSession(
             return emptyList()
         }
 
-        val localeOrder = buildLocaleOrder(config)
         // Triggers dependency locale materialization lazily once and reuses it afterwards.
         langService.lookup("__minecraft_color_probe__", localeOrder)
 
@@ -303,14 +307,6 @@ class MinecraftColorEditorSession(
             text = snapshot.text,
             localeOrder = localeOrder
         ).map(MinecraftCollectedPreview::preview)
-    }
-
-    private fun buildLocaleOrder(config: MinecraftColorConfig): List<String> {
-        return linkedSetOf<String>().apply {
-            config.preferredLocale.trim().takeIf(String::isNotEmpty)?.lowercase()?.let(::add)
-            config.secondaryLocale.trim().takeIf(String::isNotEmpty)?.lowercase()?.let(::add)
-            add("en_us")
-        }.toList()
     }
 
     private fun createTextAttributes(span: ResolvedHighlightSpan): TextAttributes {

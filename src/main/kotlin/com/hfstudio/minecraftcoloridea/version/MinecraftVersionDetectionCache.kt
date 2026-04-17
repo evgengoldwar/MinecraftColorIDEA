@@ -30,15 +30,7 @@ class MinecraftVersionDetectionCache(private val project: Project) {
         val baseDir = project.basePath
             ?.let { LocalFileSystem.getInstance().findFileByPath(it.replace('\\', '/')) }
             ?: return emptyMap()
-        val staticCandidates = sequenceOf(
-            "src/main/resources/mcmod.info",
-            "src/main/resources/META-INF/mods.toml",
-            "src/main/resources/fabric.mod.json",
-            "src/main/resources/quilt.mod.json",
-            "build.gradle",
-            "build.gradle.kts",
-            "gradle.properties"
-        ).mapNotNull { relativePath ->
+        val staticCandidates = MinecraftVersionSignalFiles.candidateRelativePaths().asSequence().mapNotNull { relativePath ->
             val file = baseDir.findFileByRelativePath(relativePath) ?: return@mapNotNull null
             relativePath to String(file.contentsToByteArray())
         }

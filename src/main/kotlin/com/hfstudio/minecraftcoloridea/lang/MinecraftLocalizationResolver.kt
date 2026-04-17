@@ -10,7 +10,7 @@ import com.hfstudio.minecraftcoloridea.core.MinecraftVersionRegistry
 
 class MinecraftLocalizationResolver(
     private val index: MinecraftLangIndex,
-    extraMethodNames: Set<String> = emptySet()
+    private val extraMethodNames: Set<String> = emptySet()
 ) {
     private data class StyledPreviewText(
         val visibleText: String,
@@ -18,36 +18,11 @@ class MinecraftLocalizationResolver(
         val baseFormatting: FormattingState
     )
 
-    private data class ParsedArgument(
-        val text: String,
-        val range: IntRange
-    )
-
-    private data class SupportedCall(
-        val methodName: String,
-        val key: String,
-        val rawArgs: List<String>,
-        val range: IntRange,
-        val keyRange: IntRange
-    )
-
-    private val supportedCalls = linkedSetOf(
-        "StatCollector.translateToLocalFormatted",
-        "StatCollector.translateToLocal",
-        "I18n.format",
-        "I18n.get",
-        "LangHelpers.localize"
-    ).apply {
-        extraMethodNames
-            .map(String::trim)
-            .filter(String::isNotEmpty)
-            .forEach(::add)
-    }
     private val literalPattern = Regex(""""((?:\\.|[^"])*)"""")
 
     fun resolveExpression(source: String, localeOrder: List<String>): MinecraftResolvedPreview? {
         val baseColorHex = resolveInheritedColor(source)
-        val callMatch = findSupportedCall(source)
+        val callMatch = MinecraftLocalizationCallParser.findFirst(source, extraMethodNames)
 
         if (callMatch != null) {
             val resolvedCall = resolveCall(
@@ -144,122 +119,8 @@ class MinecraftLocalizationResolver(
         )
     }
 
-    private fun findSupportedCall(source: String): SupportedCall? {
-        return supportedCalls.asSequence()
-            .flatMap { methodName -> findCallCandidates(source, methodName).asSequence() }
-            .minByOrNull { it.range.first }
-    }
-
-    private fun findCallCandidates(source: String, methodName: String): List<SupportedCall> {
-        val matches = mutableListOf<SupportedCall>()
-        var searchFrom = 0
-
-        while (searchFrom < source.length) {
-            val start = source.indexOf("$methodName(", searchFrom)
-            if (start < 0) {
-                break
-            }
-            searchFrom = start + methodName.length
-
-            if (!hasIdentifierBoundary(source, start)) {
-                continue
-            }
-
-            val openParenIndex = start + methodName.length
-            val parsed = parseArguments(source, openParenIndex) ?: continue
-            val arguments = parsed.first
-            if (arguments.isEmpty()) {
-                continue
-            }
-
-            val keyLiteral = arguments.first().text
-            if (keyLiteral.length < 2 || !keyLiteral.startsWith("\"") || !keyLiteral.endsWith("\"")) {
-                continue
-            }
-
-            val key = decodeLiteral(keyLiteral.substring(1, keyLiteral.length - 1))
-            matches += SupportedCall(
-                methodName = methodName,
-                key = key,
-                rawArgs = arguments.drop(1).map(ParsedArgument::text),
-                range = start..parsed.second,
-                keyRange = arguments.first().range
-            )
-        }
-
-        return matches
-    }
-
-    private fun parseArguments(source: String, openParenIndex: Int): Pair<List<ParsedArgument>, Int>? {
-        if (openParenIndex >= source.length || source[openParenIndex] != '(') {
-            return null
-        }
-
-        val arguments = mutableListOf<ParsedArgument>()
-        var depth = 0
-        var inString = false
-        var escaped = false
-        var argumentStart = openParenIndex + 1
-
-        for (index in openParenIndex + 1 until source.length) {
-            val char = source[index]
-
-            if (escaped) {
-                escaped = false
-                continue
-            }
-
-            if (char == '\\') {
-                if (inString) {
-                    escaped = true
-                }
-                continue
-            }
-
-            if (char == '"') {
-                inString = !inString
-                continue
-            }
-
-            if (!inString) {
-                when (char) {
-                    '(' -> {
-                        depth += 1
-                        continue
-                    }
-
-                    ')' -> {
-                        if (depth == 0) {
-                            trimRange(source, argumentStart, index)?.let { range ->
-                                arguments += ParsedArgument(
-                                    text = source.substring(range.first, range.last + 1),
-                                    range = range
-                                )
-                            }
-                            return arguments to index
-                        }
-
-                        depth -= 1
-                        continue
-                    }
-
-                    ',' -> {
-                        if (depth == 0) {
-                            trimRange(source, argumentStart, index)?.let { range ->
-                                arguments += ParsedArgument(
-                                    text = source.substring(range.first, range.last + 1),
-                                    range = range
-                                )
-                            }
-                            argumentStart = index + 1
-                            continue
-                        }
-                    }
-                }
-            }
-        }
-
-        return null
+    private fun decodeLiteral(value: String): String {
+        return MinecraftLocalizationCallParser.decodeLiteral(value)
     }
 
     private fun resolveInheritedColor(source: String): String? {
@@ -269,116 +130,6 @@ class MinecraftLocalizationResolver(
             .lastOrNull()
             ?: return null
         return formatCodes.colors[match.groupValues[1].lowercase().first()]?.lowercase()
-    }
-
-    private fun hasIdentifierBoundary(source: String, start: Int): Boolean {
-        if (start == 0) {
-            return true
-        }
-
-        val previous = source[start - 1]
-        return !previous.isLetterOrDigit() && previous != '_' && previous != '.'
-    }
-
-    private fun trimRange(source: String, start: Int, endExclusive: Int): IntRange? {
-        var left = start
-        var right = endExclusive - 1
-
-        while (left <= right && source[left].isWhitespace()) {
-            left += 1
-        }
-        while (right >= left && source[right].isWhitespace()) {
-            right -= 1
-        }
-
-        return if (left <= right) {
-            left..right
-        } else {
-            null
-        }
-    }
-
-    private fun decodeLiteral(value: String): String {
-        if ('\\' !in value) {
-            return value
-        }
-
-        val result = StringBuilder(value.length)
-        var index = 0
-
-        while (index < value.length) {
-            val char = value[index]
-            if (char != '\\' || index + 1 >= value.length) {
-                result.append(char)
-                index += 1
-                continue
-            }
-
-            when (val escaped = value[index + 1]) {
-                '\\' -> {
-                    result.append('\\')
-                    index += 2
-                }
-
-                '"' -> {
-                    result.append('"')
-                    index += 2
-                }
-
-                '\'' -> {
-                    result.append('\'')
-                    index += 2
-                }
-
-                'n' -> {
-                    result.append('\n')
-                    index += 2
-                }
-
-                'r' -> {
-                    result.append('\r')
-                    index += 2
-                }
-
-                't' -> {
-                    result.append('\t')
-                    index += 2
-                }
-
-                'b' -> {
-                    result.append('\b')
-                    index += 2
-                }
-
-                'f' -> {
-                    result.append('\u000C')
-                    index += 2
-                }
-
-                'u' -> {
-                    if (index + 6 <= value.length) {
-                        val hex = value.substring(index + 2, index + 6)
-                        val decoded = hex.toIntOrNull(16)?.toChar()
-                        if (decoded != null) {
-                            result.append(decoded)
-                            index += 6
-                            continue
-                        }
-                    }
-
-                    result.append('\\')
-                    result.append(escaped)
-                    index += 2
-                }
-
-                else -> {
-                    result.append(escaped)
-                    index += 2
-                }
-            }
-        }
-
-        return result.toString()
     }
 
     private fun decodeArgument(rawArg: String): String {

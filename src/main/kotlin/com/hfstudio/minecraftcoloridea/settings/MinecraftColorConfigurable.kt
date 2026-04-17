@@ -1,6 +1,8 @@
 package com.hfstudio.minecraftcoloridea.settings
 
+import com.hfstudio.minecraftcoloridea.MinecraftColorBundle
 import com.hfstudio.minecraftcoloridea.core.MinecraftColorConfig
+import com.hfstudio.minecraftcoloridea.core.MinecraftJavaVersion
 import com.hfstudio.minecraftcoloridea.core.MinecraftMarker
 import com.hfstudio.minecraftcoloridea.core.MinecraftVersion
 import com.hfstudio.minecraftcoloridea.editor.MinecraftColorApplicationService
@@ -20,20 +22,20 @@ import javax.swing.JPanel
 class MinecraftColorConfigurable : Configurable {
     private val settings = service<MinecraftColorSettingsState>()
 
-    private val enableCheckBox = JBCheckBox("Enable Minecraft formatting highlights")
+    private val enableCheckBox = JBCheckBox(MinecraftColorBundle.message("settings.global.enable"))
     private val prefixesField = JBTextField()
     private val versionComboBox = ComboBox(MinecraftVersion.entries.toTypedArray())
     private val globalJavaVersionField = JBTextField()
     private val preferredLocaleField = JBTextField()
     private val secondaryLocaleField = JBTextField()
     private val markerComboBox = ComboBox(MinecraftMarker.entries.toTypedArray())
-    private val fallbackCheckBox = JBCheckBox("Use fallback parsing for unsupported languages")
+    private val fallbackCheckBox = JBCheckBox(MinecraftColorBundle.message("settings.global.fallback.enable"))
     private val fallbackRegexArea = JBTextArea(6, 40)
     private val extraMethodsArea = JBTextArea(6, 40)
 
     private var component: JComponent? = null
 
-    override fun getDisplayName(): String = "Minecraft Color Highlighter"
+    override fun getDisplayName(): String = MinecraftColorBundle.message("settings.display.name")
 
     override fun createComponent(): JComponent {
         if (component == null) {
@@ -50,15 +52,30 @@ class MinecraftColorConfigurable : Configurable {
 
             val form = FormBuilder.createFormBuilder()
                 .addComponent(enableCheckBox)
-                .addLabeledComponent("Prefixes (comma-separated):", prefixesField, 1, false)
-                .addLabeledComponent("Minecraft version:", versionComboBox, 1, false)
-                .addLabeledComponent("Default Java version:", globalJavaVersionField, 1, false)
-                .addLabeledComponent("Preferred locale:", preferredLocaleField, 1, false)
-                .addLabeledComponent("Secondary locale:", secondaryLocaleField, 1, false)
-                .addLabeledComponent("Marker:", markerComboBox, 1, false)
+                .addLabeledComponent(MinecraftColorBundle.message("settings.global.prefixes"), prefixesField, 1, false)
+                .addLabeledComponent(MinecraftColorBundle.message("settings.global.version"), versionComboBox, 1, false)
+                .addLabeledComponent(
+                    MinecraftColorBundle.message("settings.global.default.java.version"),
+                    globalJavaVersionField,
+                    1,
+                    false
+                )
+                .addLabeledComponent(MinecraftColorBundle.message("settings.global.preferred.locale"), preferredLocaleField, 1, false)
+                .addLabeledComponent(MinecraftColorBundle.message("settings.global.secondary.locale"), secondaryLocaleField, 1, false)
+                .addLabeledComponent(MinecraftColorBundle.message("settings.global.marker"), markerComboBox, 1, false)
                 .addComponent(fallbackCheckBox)
-                .addLabeledComponent("Fallback regex (one per line):", JBScrollPane(fallbackRegexArea), 1, false)
-                .addLabeledComponent("Extra localization methods (one per line):", JBScrollPane(extraMethodsArea), 1, false)
+                .addLabeledComponent(
+                    MinecraftColorBundle.message("settings.global.fallback.regex"),
+                    JBScrollPane(fallbackRegexArea),
+                    1,
+                    false
+                )
+                .addLabeledComponent(
+                    MinecraftColorBundle.message("settings.global.extra.methods"),
+                    JBScrollPane(extraMethodsArea),
+                    1,
+                    false
+                )
                 .panel
 
             component = JPanel(BorderLayout()).apply {
@@ -75,6 +92,7 @@ class MinecraftColorConfigurable : Configurable {
 
     override fun apply() {
         settings.update(parseConfigFromUi())
+        globalJavaVersionField.text = settings.toConfig().effectiveJavaVersionId
         service<MinecraftColorApplicationService>().refreshAllEditors()
     }
 
@@ -117,7 +135,8 @@ class MinecraftColorConfigurable : Configurable {
             marker = markerComboBox.item ?: MinecraftMarker.FOREGROUND,
             fallback = fallbackCheckBox.isSelected,
             fallbackRegex = fallbackRegex,
-            effectiveJavaVersionId = globalJavaVersionField.text.trim().ifEmpty { "1.20.1" },
+            effectiveJavaVersionId = MinecraftJavaVersion.fromId(globalJavaVersionField.text)?.id
+                ?: MinecraftJavaVersion.LATEST_SUPPORTED_ID,
             preferredLocale = preferredLocaleField.text.trim().ifEmpty { "en_us" },
             secondaryLocale = secondaryLocaleField.text.trim().ifEmpty { "zh_cn" },
             extraLocalizationMethods = extraMethods
