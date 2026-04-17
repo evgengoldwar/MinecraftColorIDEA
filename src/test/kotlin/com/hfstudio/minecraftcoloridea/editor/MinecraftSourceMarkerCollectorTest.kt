@@ -73,4 +73,20 @@ class MinecraftSourceMarkerCollectorTest {
         assertEquals("#66ccff", markers.single().colorHex)
         assertEquals(source.indexOf("0x66CCFF"), markers.single().start)
     }
+
+    @Test
+    fun collectsMarkersFromForgeStyleLangConfigValues() {
+        val source = """    S:TileEntity_DESCRIPTION_00103_Index_01=机器类型：§e熔炉§r"""
+
+        val markers = collector.collect(
+            text = source,
+            languageId = "minecraft-lang",
+            config = MinecraftColorConfig()
+        )
+
+        assertEquals(2, markers.size)
+        assertEquals("§e", markers[0].rawText)
+        assertEquals("#ffff55", markers[0].colorHex)
+        assertEquals("§r", markers[1].rawText)
+    }
 }

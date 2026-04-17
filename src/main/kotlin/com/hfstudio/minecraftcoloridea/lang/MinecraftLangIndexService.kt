@@ -1,5 +1,6 @@
 package com.hfstudio.minecraftcoloridea.lang
 
+import com.hfstudio.minecraftcoloridea.core.MinecraftVirtualFileTextLoader
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
@@ -80,13 +81,13 @@ class MinecraftLangIndexService(private val project: Project) {
         return files.groupBy { it.nameWithoutExtension.lowercase() }
             .mapValues { (_, localeFiles) ->
                 localeFiles.fold(emptyMap()) { acc, file ->
-                    acc + (parseEntries(file.extension, String(file.contentsToByteArray())) ?: emptyMap())
+                    acc + (parseEntries(file.extension, MinecraftVirtualFileTextLoader.load(file)) ?: emptyMap())
                 }
             }
     }
 
     private fun parseLocaleFile(file: VirtualFile): Pair<String, Map<String, String>>? {
-        val entries = parseEntries(file.extension, String(file.contentsToByteArray())) ?: return null
+        val entries = parseEntries(file.extension, MinecraftVirtualFileTextLoader.load(file)) ?: return null
         return file.nameWithoutExtension to entries
     }
 

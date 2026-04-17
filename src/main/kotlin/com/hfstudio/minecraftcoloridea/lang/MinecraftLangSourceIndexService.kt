@@ -1,5 +1,6 @@
 package com.hfstudio.minecraftcoloridea.lang
 
+import com.hfstudio.minecraftcoloridea.core.MinecraftVirtualFileTextLoader
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
@@ -55,7 +56,7 @@ class MinecraftLangSourceIndexService(private val project: Project) {
             extension = file.extension,
             locale = file.nameWithoutExtension,
             filePath = file.path,
-            text = String(file.contentsToByteArray())
+            text = MinecraftVirtualFileTextLoader.load(file)
         ) ?: return null
         return file.nameWithoutExtension to entries
     }

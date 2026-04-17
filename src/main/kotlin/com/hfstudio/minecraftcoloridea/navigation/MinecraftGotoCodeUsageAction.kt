@@ -52,7 +52,7 @@ class MinecraftGotoCodeUsageAction : AnAction(), DumbAware {
                     .createPopupChooserBuilder(target.entries)
                     .setTitle(MinecraftColorBundle.message("chooser.goto.code.usage.title"))
                     .setRenderer(SimpleListCellRenderer.create("") { entry ->
-                        entry?.let { "${it.filePath}:${it.lineNumber}" }.orEmpty()
+                        entry?.let(::chooserPresentation)?.toHtml().orEmpty()
                     })
                     .setItemChosenCallback { entry ->
                         navigate(context.project, context.editor, entry)
@@ -79,6 +79,10 @@ class MinecraftGotoCodeUsageAction : AnAction(), DumbAware {
             return MinecraftCodeUsageNavigationResolver.NavigationRequestResult.IndexNotReady
         }
         return lookup(key)
+    }
+
+    internal fun chooserPresentation(entry: MinecraftCodeUsageEntry): MinecraftNavigationPresentation {
+        return navigationPresentation(entry)
     }
 
     private fun resolveNavigationRequest(context: ActionContext): MinecraftCodeUsageNavigationResolver.NavigationRequestResult {

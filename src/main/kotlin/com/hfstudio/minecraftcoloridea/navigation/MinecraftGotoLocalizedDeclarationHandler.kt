@@ -9,9 +9,7 @@ import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiManager
 
 class MinecraftGotoLocalizedDeclarationHandler : GotoDeclarationHandler {
     override fun getGotoDeclarationTargets(sourceElement: PsiElement?, offset: Int, editor: Editor): Array<PsiElement>? {
@@ -65,35 +63,20 @@ class MinecraftGotoLocalizedDeclarationHandler : GotoDeclarationHandler {
         val lineText = document.charsSequence.subSequence(lineStart, lineEnd).toString()
 
         return MinecraftLocalizationKeyLocator(extraLocalizationMethods)
-            .locateStrictly(lineText, caretOffset - lineStart)
+            .locateForDeclaration(lineText, caretOffset - lineStart)
     }
 
     private fun MinecraftLangSourceEntry.toPsiTarget(project: Project): PsiElement? {
-        val virtualFile = LocalFileSystem.getInstance().findFileByPath(filePath.replace('\\', '/')) ?: return null
-        val psiFile = PsiManager.getInstance(project).findFile(virtualFile) ?: return null
-        return psiFile.findElementAt(resolveTargetOffset(psiFile.text, this).coerceIn(0, psiFile.textLength))
-            ?: psiFile
+        val (_, offset) = MinecraftLocalizedEntryNavigation.resolveFileAndOffset(this) ?: return null
+        return MinecraftNavigationTargetElement(
+            project = project,
+            filePath = filePath,
+            targetOffset = offset,
+            presentationData = navigationPresentation(this)
+        )
     }
 
     internal fun resolveTargetOffset(content: String, entry: MinecraftLangSourceEntry): Int {
-        val lineStart = entry.lineStartOffset.coerceIn(0, content.length)
-        val lineEnd = content.indexOf('\n', lineStart).let { if (it >= 0) it else content.length }
-        val lineText = content.substring(lineStart, lineEnd)
-        val matchOffset = localizedKeySearchTerms(entry.key)
-            .firstNotNullOfOrNull { term ->
-                lineText.indexOf(term).takeIf { it >= 0 }
-            }
-        return if (matchOffset != null) {
-            lineStart + matchOffset
-        } else {
-            lineStart
-        }
-    }
-
-    private fun localizedKeySearchTerms(key: String): List<String> {
-        val escaped = key
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-        return linkedSetOf(key, escaped).toList()
+        return MinecraftLocalizedEntryNavigation.resolveTargetOffset(content, entry)
     }
 }

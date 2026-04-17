@@ -1,5 +1,6 @@
 package com.hfstudio.minecraftcoloridea.version
 
+import com.hfstudio.minecraftcoloridea.core.MinecraftVirtualFileTextLoader
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -32,7 +33,7 @@ class MinecraftVersionDetectionCache(private val project: Project) {
             ?: return emptyMap()
         val staticCandidates = MinecraftVersionSignalFiles.candidateRelativePaths().asSequence().mapNotNull { relativePath ->
             val file = baseDir.findFileByRelativePath(relativePath) ?: return@mapNotNull null
-            relativePath to String(file.contentsToByteArray())
+            relativePath to MinecraftVirtualFileTextLoader.load(file)
         }
 
         val sourceCandidates = sequenceOf("src/main/java", "src/main/kotlin")
@@ -44,7 +45,7 @@ class MinecraftVersionDetectionCache(private val project: Project) {
                         val relativePath = file.path
                             .removePrefix(project.basePath.orEmpty() + "/")
                             .removePrefix(project.basePath.orEmpty() + "\\")
-                        matches += relativePath to String(file.contentsToByteArray())
+                        matches += relativePath to MinecraftVirtualFileTextLoader.load(file)
                     }
                     true
                 }

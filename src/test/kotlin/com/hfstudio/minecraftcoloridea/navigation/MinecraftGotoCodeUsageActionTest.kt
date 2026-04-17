@@ -46,4 +46,23 @@ class MinecraftGotoCodeUsageActionTest {
         assertEquals(MinecraftCodeUsageNavigationResolver.NavigationRequestResult.IndexNotReady, resolved)
         assertEquals(0, lookupCalls)
     }
+
+    @Test
+    fun chooserPresentationShowsFileAndLineBeforeDirectoryPath() {
+        val presentation = MinecraftGotoCodeUsageAction().chooserPresentation(
+            MinecraftCodeUsageEntry(
+                key = "tooltip.backpack",
+                filePath = "src/main/java/example/BackpackItem.java",
+                lineNumber = 8,
+                lineStartOffset = 120,
+                matchStartOffset = 132,
+                matchEndOffset = 148,
+                snippet = """I18n.format("tooltip.backpack")""",
+                confidence = MinecraftCodeUsageConfidence.EXACT
+            )
+        )
+
+        assertEquals("BackpackItem.java:8", presentation.locationText)
+        assertEquals("src/main/java/example", presentation.fileNameText)
+    }
 }

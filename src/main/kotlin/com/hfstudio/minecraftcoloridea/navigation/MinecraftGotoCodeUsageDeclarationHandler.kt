@@ -6,9 +6,7 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiManager
 
 class MinecraftGotoCodeUsageDeclarationHandler : GotoDeclarationHandler {
     override fun getGotoDeclarationTargets(sourceElement: PsiElement?, offset: Int, editor: Editor): Array<PsiElement>? {
@@ -67,9 +65,11 @@ class MinecraftGotoCodeUsageDeclarationHandler : GotoDeclarationHandler {
     }
 
     private fun MinecraftCodeUsageEntry.toPsiTarget(project: Project): PsiElement? {
-        val virtualFile = LocalFileSystem.getInstance().findFileByPath(filePath.replace('\\', '/')) ?: return null
-        val psiFile = PsiManager.getInstance(project).findFile(virtualFile) ?: return null
-        return psiFile.findElementAt(matchStartOffset.coerceIn(0, psiFile.textLength))
-            ?: psiFile
+        return MinecraftNavigationTargetElement(
+            project = project,
+            filePath = filePath,
+            targetOffset = matchStartOffset,
+            presentationData = navigationPresentation(this)
+        )
     }
 }

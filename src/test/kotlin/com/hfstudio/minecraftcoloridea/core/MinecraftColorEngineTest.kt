@@ -141,20 +141,54 @@ class MinecraftColorEngineTest {
 
     @Test
     fun plainTextKeepsFormattingAcrossQuotedFragments() {
-        val text = "Tooltip_PipelessJetstreamHatch_00=§b§o你梦中回忆起\"无线能源仓\"，却不记得有这种力量."
+        val text = legacyQuotedLangLine()
 
         val spans = engine.highlight(
             text = text,
             languageId = "plain text",
-            config = MinecraftColorConfig(prefixes = listOf("§"), version = MinecraftVersion.JAVA)
+            config = MinecraftColorConfig(prefixes = listOf("\u00a7"), version = MinecraftVersion.JAVA)
         )
 
-        val quoted = spans.first { text.substring(it.start, it.end).contains("无线能源仓") }
+        val quoted = spans.first { text.substring(it.start, it.end).contains("\"Wireless Energy Cell\"") }
         assertEquals("#55FFFF", quoted.colorMarker?.colorHex)
         assertTrue(quoted.formatting.italic)
 
-        val tail = spans.first { text.substring(it.start, it.end).contains("却不记得有这种力量") }
+        val tail = spans.first { text.substring(it.start, it.end).contains("yet cannot remember") }
         assertEquals("#55FFFF", tail.colorMarker?.colorHex)
         assertTrue(tail.formatting.italic)
+    }
+
+    @Test
+    fun minecraftLangKeepsFormattingAcrossQuotedFragments() {
+        val text = legacyQuotedLangLine()
+
+        val spans = engine.highlight(
+            text = text,
+            languageId = "minecraft-lang",
+            config = MinecraftColorConfig(prefixes = listOf("\u00a7"), version = MinecraftVersion.JAVA)
+        )
+
+        val tail = spans.first { text.substring(it.start, it.end).contains("yet cannot remember") }
+        assertEquals("#55FFFF", tail.colorMarker?.colorHex)
+        assertTrue(tail.formatting.italic)
+    }
+
+    @Test
+    fun propertiesLanguageKeepsFormattingAcrossQuotedFragments() {
+        val text = legacyQuotedLangLine()
+
+        val spans = engine.highlight(
+            text = text,
+            languageId = "Properties",
+            config = MinecraftColorConfig(prefixes = listOf("\u00a7"), version = MinecraftVersion.JAVA)
+        )
+
+        val tail = spans.first { text.substring(it.start, it.end).contains("yet cannot remember") }
+        assertEquals("#55FFFF", tail.colorMarker?.colorHex)
+        assertTrue(tail.formatting.italic)
+    }
+
+    private fun legacyQuotedLangLine(): String {
+        return "Tooltip_PipelessJetstreamHatch_00=\u00a7b\u00a7oYou recall \"Wireless Energy Cell\", yet cannot remember such a power."
     }
 }

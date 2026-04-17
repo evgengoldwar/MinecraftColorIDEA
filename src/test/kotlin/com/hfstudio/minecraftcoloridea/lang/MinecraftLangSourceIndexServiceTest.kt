@@ -3,6 +3,10 @@ package com.hfstudio.minecraftcoloridea.lang
 import com.intellij.mock.MockProjectEx
 import com.intellij.openapi.util.Disposer
 import com.intellij.testFramework.LightVirtualFile
+import java.io.ByteArrayInputStream
+import java.io.InputStream
+import java.nio.charset.Charset
+import java.nio.charset.StandardCharsets
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -113,7 +117,70 @@ class MinecraftLangSourceIndexServiceTest {
         }
     }
 
-    private class TestVirtualFile(private val pathValue: String) : LightVirtualFile(pathValue.substringAfterLast('/')) {
+    @Test
+    fun refreshChangedFilesUsesVirtualFileCharsetForLangOffsets() {
+        val disposable = Disposer.newDisposable()
+        try {
+            val service = MinecraftLangSourceIndexService(MockProjectEx(disposable))
+            val content = """
+                # header
+                tooltip.backpack=Backpack
+            """.trimIndent()
+            val file = TestVirtualFile(
+                pathValue = "E:/Github/ExampleMod/src/main/resources/assets/example/lang/zh_cn.lang",
+                text = content,
+                charset = StandardCharsets.UTF_16LE
+            )
+
+            service.refreshChangedFiles(sequenceOf(file))
+
+            val entry = service.lookup("tooltip.backpack", listOf("zh_cn"))!!.single()
+            assertEquals(2, entry.lineNumber)
+            assertEquals(content.indexOf("tooltip.backpack"), entry.lineStartOffset)
+        } finally {
+            Disposer.dispose(disposable)
+        }
+    }
+
+    @Test
+    fun refreshChangedFilesNormalizesCrlfOffsetsForLangNavigation() {
+        val disposable = Disposer.newDisposable()
+        try {
+            val service = MinecraftLangSourceIndexService(MockProjectEx(disposable))
+            val content = "# header\r\nfirst=One\r\nTooltip_NinefoldInputHatch_00=Value\r\n"
+            val normalized = content.replace("\r\n", "\n")
+            val file = TestVirtualFile(
+                pathValue = "E:/Github/ExampleMod/src/main/resources/assets/example/lang/zh_cn.lang",
+                text = content
+            )
+
+            service.refreshChangedFiles(sequenceOf(file))
+
+            val entry = service.lookup("Tooltip_NinefoldInputHatch_00", listOf("zh_cn"))!!.single()
+            assertEquals(3, entry.lineNumber)
+            assertEquals(
+                normalized.indexOf("Tooltip_NinefoldInputHatch_00"),
+                entry.lineStartOffset
+            )
+        } finally {
+            Disposer.dispose(disposable)
+        }
+    }
+
+    private class TestVirtualFile(
+        private val pathValue: String,
+        text: String = "",
+        charset: Charset = StandardCharsets.UTF_8
+    ) : LightVirtualFile(pathValue.substringAfterLast('/')) {
+        private val fileCharset = charset
+        private val bytes = text.toByteArray(charset)
+
         override fun getPath(): String = pathValue
+
+        override fun contentsToByteArray(): ByteArray = bytes
+
+        override fun getInputStream(): InputStream = ByteArrayInputStream(bytes)
+
+        override fun getCharset(): Charset = fileCharset
     }
 }

@@ -49,7 +49,7 @@ class MinecraftGotoLocalizedEntryActionTest {
     }
 
     @Test
-    fun chooserPresentationShowsParentPathAndFileNameSeparately() {
+    fun chooserPresentationShowsFileAndLineBeforeDirectoryPath() {
         val presentation = MinecraftGotoLocalizedEntryAction().chooserPresentation(
             MinecraftLangSourceEntry(
                 locale = "zh_cn",
@@ -60,7 +60,7 @@ class MinecraftGotoLocalizedEntryActionTest {
             )
         )
 
-        assertEquals("src/main/resources/assets/example/lang:5", presentation.locationText)
-        assertEquals("zh_CN.lang", presentation.fileNameText)
+        assertEquals("zh_CN.lang:5", presentation.locationText)
+        assertEquals("src/main/resources/assets/example/lang", presentation.fileNameText)
     }
 }

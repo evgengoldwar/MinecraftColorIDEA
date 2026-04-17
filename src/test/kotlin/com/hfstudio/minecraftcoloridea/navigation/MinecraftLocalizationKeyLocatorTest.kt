@@ -95,6 +95,30 @@ class MinecraftLocalizationKeyLocatorTest {
     }
 
     @Test
+    fun declarationModeFallsBackInsideSupportedCallRange() {
+        val source = """desc.add(StatCollector.translateToLocal("Tooltip_NinefoldInputHatch_00"));"""
+
+        val resolved = MinecraftLocalizationKeyLocator().locateForDeclaration(
+            source = source,
+            caretOffset = source.indexOf("translateToLocal")
+        )
+
+        assertEquals("Tooltip_NinefoldInputHatch_00", resolved?.key)
+    }
+
+    @Test
+    fun declarationModeDoesNotFallbackFromUnrelatedSymbolOnSameLine() {
+        val source = """val label = LangHelpers.localize("tooltip.backpack") + suffix"""
+
+        val resolved = MinecraftLocalizationKeyLocator().locateForDeclaration(
+            source = source,
+            caretOffset = source.indexOf("suffix")
+        )
+
+        assertNull(resolved)
+    }
+
+    @Test
     fun resolvesEnclosingCallKeyWhenMultipleSupportedCallsShareLine() {
         val source = """I18n.format("a", foo) + I18n.format("b", bar)"""
         val locator = MinecraftLocalizationKeyLocator()

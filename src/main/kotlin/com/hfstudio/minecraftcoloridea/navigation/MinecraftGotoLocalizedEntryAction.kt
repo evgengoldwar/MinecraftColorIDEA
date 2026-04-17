@@ -13,23 +13,12 @@ import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.Presentation
 import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Editor
-import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopupFactory
-import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.ui.SimpleListCellRenderer
 
 class MinecraftGotoLocalizedEntryAction : AnAction(), DumbAware {
-    internal data class ChooserPresentation(
-        val locationText: String,
-        val fileNameText: String
-    ) {
-        fun toHtml(): String {
-            return "<html><table width='100%'><tr><td>$locationText</td><td align='right'><b>$fileNameText</b></td></tr></table></html>"
-        }
-    }
-
     internal sealed interface NavigationRequestResult {
         data object IndexNotReady : NavigationRequestResult
         data object NotFound : NavigationRequestResult
@@ -143,29 +132,19 @@ class MinecraftGotoLocalizedEntryAction : AnAction(), DumbAware {
         }
     }
 
-    internal fun chooserPresentation(entry: MinecraftLangSourceEntry): ChooserPresentation {
-        val normalizedPath = entry.filePath.replace('\\', '/')
-        val fileName = normalizedPath.substringAfterLast('/')
-        val parentPath = normalizedPath.substringBeforeLast('/', missingDelimiterValue = "")
-        val locationText = if (parentPath.isNotEmpty()) {
-            "$parentPath:${entry.lineNumber}"
-        } else {
-            "Line ${entry.lineNumber}"
-        }
-        return ChooserPresentation(
-            locationText = locationText,
-            fileNameText = fileName.ifEmpty { normalizedPath }
-        )
+    internal fun chooserPresentation(entry: MinecraftLangSourceEntry): MinecraftNavigationPresentation {
+        return navigationPresentation(entry)
     }
 
     private fun navigate(project: Project, editor: Editor, entry: MinecraftLangSourceEntry) {
-        val file = LocalFileSystem.getInstance().refreshAndFindFileByPath(entry.filePath.replace('\\', '/'))
-        if (file == null) {
+        val target = MinecraftLocalizedEntryNavigation.resolveFileAndOffset(entry)
+        if (target == null) {
             showHint(editor, "notification.goto.localized.entry.not.found")
             return
         }
 
-        OpenFileDescriptor(project, file, entry.lineStartOffset).navigate(true)
+        val (file, offset) = target
+        com.intellij.openapi.fileEditor.OpenFileDescriptor(project, file, offset).navigate(true)
     }
 
     private fun showHint(editor: Editor, messageKey: String) {

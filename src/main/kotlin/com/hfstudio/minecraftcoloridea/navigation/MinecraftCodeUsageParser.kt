@@ -286,10 +286,11 @@ class MinecraftCodeUsageParser(
                 }
 
                 char == '/' && index + 1 < chars.size && chars[index + 1] == '/' -> {
-                    for (maskIndex in index until chars.size) {
+                    val endIndex = source.indexOf('\n', startIndex = index).let { if (it >= 0) it else chars.size }
+                    for (maskIndex in index until endIndex) {
                         chars[maskIndex] = ' '
                     }
-                    break
+                    index = endIndex
                 }
 
                 char == '/' && index + 1 < chars.size && chars[index + 1] == '*' -> {

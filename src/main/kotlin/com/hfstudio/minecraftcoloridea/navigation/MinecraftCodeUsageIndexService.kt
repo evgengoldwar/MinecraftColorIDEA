@@ -1,5 +1,6 @@
 package com.hfstudio.minecraftcoloridea.navigation
 
+import com.hfstudio.minecraftcoloridea.core.MinecraftVirtualFileTextLoader
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
@@ -17,7 +18,7 @@ class MinecraftCodeUsageIndexService(private val project: Project) {
     fun refreshProjectResources(maxEnumeratedKeys: Int) {
         store.clear()
         MinecraftCodeUsageFileScope.projectFiles(project).forEach { file ->
-            refreshFile(file, String(file.contentsToByteArray()), maxEnumeratedKeys)
+            refreshFile(file, MinecraftVirtualFileTextLoader.load(file), maxEnumeratedKeys)
         }
         stamp += 1
     }
@@ -28,7 +29,7 @@ class MinecraftCodeUsageIndexService(private val project: Project) {
             if (!MinecraftCodeUsageFileScope.isCandidate(file)) {
                 return@forEach
             }
-            refreshFile(file, String(file.contentsToByteArray()), maxEnumeratedKeys)
+            refreshFile(file, MinecraftVirtualFileTextLoader.load(file), maxEnumeratedKeys)
             changed = true
         }
         if (changed) {

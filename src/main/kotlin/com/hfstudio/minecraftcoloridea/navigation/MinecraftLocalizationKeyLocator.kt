@@ -10,6 +10,12 @@ data class MinecraftLocatedKey(
 class MinecraftLocalizationKeyLocator(
     private val extraMethodNames: Set<String> = emptySet()
 ) {
+    private enum class FallbackMode {
+        NONE,
+        DECLARATION,
+        ACTION
+    }
+
     private data class ParsedLine(
         val supportedCalls: List<com.hfstudio.minecraftcoloridea.lang.MinecraftLocalizationCallMatch>,
         val explicitLiterals: List<MinecraftLocatedKey>,
@@ -20,32 +26,36 @@ class MinecraftLocalizationKeyLocator(
     private val keyPattern = Regex("""[A-Za-z0-9_.-]+\.[A-Za-z0-9_.-]+""")
 
     fun locate(source: String, caretOffset: Int): MinecraftLocatedKey? {
-        return locate(source, caretOffset, allowLineFallback = true)
+        return locate(source, caretOffset, fallbackMode = FallbackMode.ACTION)
     }
 
     fun locateStrictly(source: String, caretOffset: Int): MinecraftLocatedKey? {
-        return locate(source, caretOffset, allowLineFallback = false)
+        return locate(source, caretOffset, fallbackMode = FallbackMode.NONE)
     }
 
-    private fun locate(source: String, caretOffset: Int, allowLineFallback: Boolean): MinecraftLocatedKey? {
+    fun locateForDeclaration(source: String, caretOffset: Int): MinecraftLocatedKey? {
+        return locate(source, caretOffset, fallbackMode = FallbackMode.DECLARATION)
+    }
+
+    private fun locate(source: String, caretOffset: Int, fallbackMode: FallbackMode): MinecraftLocatedKey? {
         val parsed = parseLine(source)
         parsed.keyCandidates
             .firstOrNull { caretOffset in it.range }
             ?.let { return it }
 
-        if (allowLineFallback) {
+        if (fallbackMode != FallbackMode.NONE) {
             parsed.supportedCalls
                 .firstOrNull { caretOffset in it.range && caretOffset !in it.keyRange }
                 ?.let { return MinecraftLocatedKey(it.key, it.keyRange) }
         }
 
-        if (allowLineFallback) {
+        if (fallbackMode != FallbackMode.NONE) {
             parsed.explicitLiterals
                 .firstOrNull { caretOffset in it.range }
                 ?.let { return it }
         }
 
-        return if (allowLineFallback) {
+        return if (fallbackMode == FallbackMode.ACTION) {
             parsed.keyCandidates.distinctBy(MinecraftLocatedKey::key).singleOrNull()
         } else {
             null

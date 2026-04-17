@@ -18,6 +18,8 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.editor.event.VisibleAreaEvent
+import com.intellij.openapi.editor.event.VisibleAreaListener
 import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.editor.markup.EffectType
 import com.intellij.openapi.editor.markup.HighlighterLayer
@@ -31,6 +33,7 @@ import com.intellij.ui.ColorUtil
 import com.intellij.util.Alarm
 import java.awt.Color
 import java.awt.Font
+import java.awt.Rectangle
 
 class MinecraftColorEditorSession(
     private val editor: Editor,
@@ -45,7 +48,9 @@ class MinecraftColorEditorSession(
         val text: String,
         val languageId: String?,
         val modificationStamp: Long,
-        val filePath: String?
+        val filePath: String?,
+        val lineCount: Int,
+        val renderRegion: MinecraftDocumentRegion?
     )
 
     private val immediateAlarm = Alarm(Alarm.ThreadToUse.POOLED_THREAD, this)
@@ -54,15 +59,28 @@ class MinecraftColorEditorSession(
     private val previewSession = MinecraftPreviewInlaySession(editor)
     private val sourceMarkerSession = MinecraftSourceMarkerInlaySession(editor)
     private val sourceMarkerCollector = MinecraftSourceMarkerCollector()
+    private val visibleAreaListener = VisibleAreaListener { event: VisibleAreaEvent ->
+        latestVisibleLineRange = visibleLineRange(event.newRectangle)
+        scheduleRefresh()
+    }
 
     private var disposed = false
     private var lastModificationStamp = Long.MIN_VALUE
     private var lastFingerprint = ""
+    @Volatile
+    private var latestVisibleLineRange: MinecraftVisibleLineRange? = null
+
+    init {
+        captureVisibleLineRangeIfPossible()
+        editor.scrollingModel.addVisibleAreaListener(visibleAreaListener)
+    }
 
     fun scheduleRefresh(change: MinecraftDocumentChange? = null) {
         if (disposed) {
             return
         }
+
+        captureVisibleLineRangeIfPossible()
 
         change?.let {
             immediateAlarm.cancelAllRequests()
@@ -93,12 +111,14 @@ class MinecraftColorEditorSession(
         )
         val localeOrder = projectSettings.resolveLocaleTargetOrder(config)
         val snapshot = createSnapshot(project) ?: return
+        val renderRegion = snapshot.renderRegion
         val fingerprint = listOf(
             config.hashCode(),
             localeOrder.joinToString(","),
             snapshot.languageId.orEmpty(),
             langService.langIndexStamp(),
-            versionCache.stamp()
+            versionCache.stamp(),
+            renderRegion?.let { "${it.start}:${it.endExclusive}" } ?: "full"
         ).joinToString("|")
 
         if (!config.enable) {
@@ -118,19 +138,28 @@ class MinecraftColorEditorSession(
             return
         }
 
-        val spans = engine.highlight(
-            text = snapshot.text,
-            languageId = snapshot.languageId,
-            config = config
-        )
+        val spans = renderRegion?.let { highlightRegion(snapshot, it, config) }
+            ?: engine.highlight(
+                text = snapshot.text,
+                languageId = snapshot.languageId,
+                config = config
+            )
 
         val previews = resolvePreviews(
             snapshot = snapshot,
+            region = renderRegion,
             config = config,
             localeOrder = localeOrder,
             langService = langService
         )
-        val sourceMarkers = sourceMarkerCollector.collect(
+        val sourceMarkers = renderRegion?.let {
+            sourceMarkerCollector.collectInRegion(
+                text = snapshot.text,
+                languageId = snapshot.languageId,
+                config = config,
+                region = it
+            )
+        } ?: sourceMarkerCollector.collect(
             text = snapshot.text,
             languageId = snapshot.languageId,
             config = config
@@ -201,7 +230,14 @@ class MinecraftColorEditorSession(
                 text = document.immutableCharSequence.toString(),
                 languageId = languageId,
                 modificationStamp = document.modificationStamp,
-                filePath = file?.path
+                filePath = file?.path,
+                lineCount = document.lineCount,
+                renderRegion = MinecraftEditorRenderStrategy.limitedRenderRegion(
+                    document = document,
+                    textLength = document.textLength,
+                    lineCount = document.lineCount,
+                    visibleLines = latestVisibleLineRange
+                )
             )
         }
     }
@@ -292,10 +328,15 @@ class MinecraftColorEditorSession(
 
     private fun resolvePreviews(
         snapshot: Snapshot,
+        region: MinecraftDocumentRegion?,
         config: MinecraftColorConfig,
         localeOrder: List<String>,
         langService: MinecraftLangIndexService
     ): List<MinecraftResolvedPreview> {
+        if (snapshot.languageId == "minecraft-lang") {
+            return emptyList()
+        }
+
         val normalizedPath = snapshot.filePath?.replace('\\', '/').orEmpty()
         if (normalizedPath.contains("/lang/")) {
             return emptyList()
@@ -304,13 +345,18 @@ class MinecraftColorEditorSession(
         // Triggers dependency locale materialization lazily once and reuses it afterwards.
         langService.lookup("__minecraft_color_probe__", localeOrder)
 
-        return MinecraftPreviewCollector(
+        val collected = MinecraftPreviewCollector(
             index = langService.currentIndex(),
             extraMethodNames = config.extraLocalizationMethods
         ).collect(
-            text = snapshot.text,
+            text = region?.substring(snapshot.text) ?: snapshot.text,
             localeOrder = localeOrder
-        ).map(MinecraftCollectedPreview::preview)
+        )
+
+        return MinecraftEditorRenderStrategy.shiftPreviews(
+            previews = collected,
+            regionStart = region?.start ?: 0
+        )
     }
 
     private fun createTextAttributes(span: ResolvedHighlightSpan): TextAttributes {
@@ -424,6 +470,32 @@ class MinecraftColorEditorSession(
         highlighters.clear()
     }
 
+    private fun captureVisibleLineRangeIfPossible() {
+        if (!ApplicationManager.getApplication().isDispatchThread || disposed || editor.isDisposed) {
+            return
+        }
+
+        latestVisibleLineRange = visibleLineRange(editor.scrollingModel.visibleArea)
+    }
+
+    private fun visibleLineRange(visibleArea: Rectangle): MinecraftVisibleLineRange? {
+        val document = editor.document
+        val lineCount = document.lineCount
+        if (lineCount <= 0) {
+            return null
+        }
+
+        val visibleStartLine = editor.xyToLogicalPosition(java.awt.Point(0, visibleArea.y)).line
+        val visibleEndLine = editor.xyToLogicalPosition(
+            java.awt.Point(0, (visibleArea.y + visibleArea.height - 1).coerceAtLeast(0))
+        ).line
+        return MinecraftEditorRenderStrategy.visibleLineRange(
+            lineCount = lineCount,
+            visibleStartLine = visibleStartLine,
+            visibleEndLine = visibleEndLine
+        )
+    }
+
     override fun dispose() {
         if (disposed) {
             return
@@ -434,6 +506,7 @@ class MinecraftColorEditorSession(
         fullAlarm.cancelAllRequests()
         previewSession.clear()
         sourceMarkerSession.dispose()
+        editor.scrollingModel.removeVisibleAreaListener(visibleAreaListener)
         editor.project?.service<MinecraftProjectRefreshCoordinator>()
             ?.updateDependencies(editor.document, emptySet())
         clearHighlighters()
