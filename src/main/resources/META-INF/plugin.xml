@@ -14,6 +14,10 @@
     <depends>com.intellij.modules.platform</depends>
 
     <extensions defaultExtensionNs="com.intellij">
+        <completion.contributor
+                language="TEXT"
+                implementationClass="com.hfstudio.minecraftcoloridea.lang.MinecraftLangCompletionContributor"/>
+        <annotator language="TEXT" implementationClass="com.hfstudio.minecraftcoloridea.lang.MinecraftLangAnnotator"/>
         <applicationService serviceImplementation="com.hfstudio.minecraftcoloridea.settings.MinecraftColorSettingsState"/>
         <applicationService serviceImplementation="com.hfstudio.minecraftcoloridea.editor.MinecraftColorApplicationService"/>
         <applicationConfigurable

@@ -6,9 +6,12 @@ import com.hfstudio.minecraftcoloridea.core.MinecraftJavaVersion
 import com.hfstudio.minecraftcoloridea.core.MinecraftMarker
 import com.hfstudio.minecraftcoloridea.core.MinecraftVersion
 import com.hfstudio.minecraftcoloridea.editor.MinecraftColorApplicationService
+import com.hfstudio.minecraftcoloridea.lang.MinecraftLangAnnotator
 import com.intellij.openapi.components.service
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.ui.ColorPanel
+import com.intellij.ui.JBColor
 import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBScrollPane
@@ -23,6 +26,8 @@ class MinecraftColorConfigurable : Configurable {
     private val settings = service<MinecraftColorSettingsState>()
 
     private val enableCheckBox = JBCheckBox(MinecraftColorBundle.message("settings.global.enable"))
+    private val langKeyColorPanel = ColorPanel()
+    private val langEqualColorPanel = ColorPanel()
     private val prefixesField = JBTextField()
     private val versionComboBox = ComboBox(MinecraftVersion.entries.toTypedArray())
     private val globalJavaVersionField = JBTextField()
@@ -53,6 +58,8 @@ class MinecraftColorConfigurable : Configurable {
 
             val form = FormBuilder.createFormBuilder()
                 .addComponent(enableCheckBox)
+                .addLabeledComponent(MinecraftColorBundle.message("settings.global.lang_key_color"), langKeyColorPanel, 1, false)
+                .addLabeledComponent(MinecraftColorBundle.message("settings.global.lang_sign_color"), langEqualColorPanel, 1, false)
                 .addLabeledComponent(MinecraftColorBundle.message("settings.global.prefixes"), prefixesField, 1, false)
                 .addLabeledComponent(MinecraftColorBundle.message("settings.global.version"), versionComboBox, 1, false)
                 .addLabeledComponent(
@@ -94,11 +101,16 @@ class MinecraftColorConfigurable : Configurable {
     }
 
     override fun isModified(): Boolean {
-        return parseConfigFromUi() != settings.toConfig()
+        return parseConfigFromUi() != settings.toConfig() ||
+                langKeyColorPanel.selectedColor?.rgb != settings.langKeyColor ||
+                langEqualColorPanel.selectedColor?.rgb != settings.langEqualColor
     }
 
     override fun apply() {
         settings.update(parseConfigFromUi())
+        settings.langKeyColor = langKeyColorPanel.selectedColor?.rgb ?: JBColor.ORANGE.rgb
+        settings.langEqualColor = langEqualColorPanel.selectedColor?.rgb ?: JBColor.ORANGE.rgb
+        MinecraftLangAnnotator.clearCache()
         globalJavaVersionField.text = settings.toConfig().effectiveJavaVersionId
         maxEnumeratedKeysField.text = settings.toConfig().maxEnumeratedKeys.toString()
         service<MinecraftColorApplicationService>().refreshAllEditors()
@@ -107,6 +119,8 @@ class MinecraftColorConfigurable : Configurable {
     override fun reset() {
         val config = settings.toConfig()
         enableCheckBox.isSelected = config.enable
+        langKeyColorPanel.selectedColor = JBColor(settings.langKeyColor, settings.langKeyColor)
+        langEqualColorPanel.selectedColor = JBColor(settings.langEqualColor, settings.langEqualColor)
         prefixesField.text = config.prefixes.joinToString(", ")
         versionComboBox.selectedItem = config.version
         globalJavaVersionField.text = config.effectiveJavaVersionId

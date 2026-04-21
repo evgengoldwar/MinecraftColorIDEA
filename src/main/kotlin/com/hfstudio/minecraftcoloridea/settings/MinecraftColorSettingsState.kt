@@ -9,6 +9,7 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import com.intellij.openapi.diagnostic.thisLogger
+import com.intellij.ui.JBColor
 
 @Service(Service.Level.APP)
 @State(
@@ -28,6 +29,8 @@ class MinecraftColorSettingsState : PersistentStateComponent<MinecraftColorSetti
         var secondaryLocale: String = "zh_cn"
         var extraLocalizationMethods: MutableList<String> = mutableListOf()
         var maxEnumeratedKeys: Int = MinecraftColorConfig.DEFAULT_MAX_ENUMERATED_KEYS
+        var langKeyColor: Int = JBColor.ORANGE.rgb
+        var langEqualColor: Int = JBColor.ORANGE.rgb
     }
 
     private var state = StoredState()
@@ -112,4 +115,12 @@ class MinecraftColorSettingsState : PersistentStateComponent<MinecraftColorSetti
             it in MinecraftColorConfig.MIN_MAX_ENUMERATED_KEYS..MinecraftColorConfig.MAX_MAX_ENUMERATED_KEYS
         } ?: MinecraftColorConfig.DEFAULT_MAX_ENUMERATED_KEYS
     }
+
+    var langKeyColor: Int
+        get() = state.langKeyColor
+        set(value) { state.langKeyColor = value }
+
+    var langEqualColor: Int
+        get() = state.langEqualColor
+        set(value) { state.langEqualColor = value }
 }
